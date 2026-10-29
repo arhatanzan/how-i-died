@@ -1,9 +1,9 @@
 /**
  * Database export formatters for popular database systems
- * Converts the file-based database to standard database formats
+ * Converts the GitHub-backed database to standard database formats
  */
 
-import { readTable } from './file-db.mjs';
+import { readTable } from './blob-db.mjs';
 
 /**
  * Export to MongoDB format (BSON-like JSON array)

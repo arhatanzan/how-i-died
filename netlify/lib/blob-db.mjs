@@ -148,3 +148,43 @@ export async function deleteRecord(tableName, recordId) {
 export async function getRecord(tableName, recordId) {
   return getRecordFromFile(tableName, recordId);
 }
+
+// Admin functions for compatibility with file-db.mjs interface
+export async function listTables() {
+  // Only 'notes' table is supported in GitHub storage
+  return ['notes'];
+}
+
+export async function exportTable(tableName) {
+  // Return table data in exportable format
+  const records = await readTable(tableName);
+  return {
+    name: tableName,
+    recordCount: records.length,
+    records,
+  };
+}
+
+export async function getStats() {
+  // Return basic statistics about stored data
+  try {
+    const notes = await readTable('notes');
+    return {
+      tables: {
+        notes: {
+          count: notes.length,
+          records: notes,
+        },
+      },
+      lastUpdated: new Date().toISOString(),
+      backend: 'github',
+    };
+  } catch (error) {
+    console.error('Failed to get stats:', error);
+    return {
+      tables: { notes: { count: 0, records: [] } },
+      error: error.message,
+      backend: 'github',
+    };
+  }
+}

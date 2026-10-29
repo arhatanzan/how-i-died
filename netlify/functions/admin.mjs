@@ -9,7 +9,7 @@ import {
   listTables,
   exportTable,
   getStats 
-} from '../lib/file-db.mjs';
+} from '../lib/blob-db.mjs';
 import {
   exportToMongoDB,
   exportToPostgres,
