@@ -415,6 +415,19 @@ export function getNoteGitHubPath(noteId, createdAt) {
  * Load a note's metadata from GitHub by ID
  * Searches across all date folders
  */
+async function listNoteFiles(client) {
+  const response = await client.git.getTree({
+    owner: GITHUB_OWNER,
+    repo: GITHUB_REPO,
+    tree_sha: 'HEAD',
+    recursive: 'true',
+  });
+  if (response.data.truncated) throw new Error('Journal repository tree is incomplete.');
+  return response.data.tree.filter(item =>
+    item.type === 'blob' && /^data\/journal\/\d{4}\/\d{2}\/\d{2}\/[^/]+\.json$/.test(item.path)
+  );
+}
+
 export async function loadNoteMetadata(noteId) {
   const client = getOctokit();
   if (!client) {
@@ -428,17 +441,9 @@ export async function loadNoteMetadata(noteId) {
   }
 
   try {
-    // Try to search for the note file
-    const results = await client.search.code({
-      q: `repo:${GITHUB_OWNER}/${GITHUB_REPO} filename:${noteId}.json path:data/journal`,
-    });
-
-    if (!results.data.items || results.data.items.length === 0) {
-      return null;
-    }
-
-    // Get the first matching file
-    const item = results.data.items[0];
+    const files = await listNoteFiles(client);
+    const item = files.find(file => file.path.endsWith(`/${noteId}.json`));
+    if (!item) return null;
     const response = await client.repos.getContent({
       owner: GITHUB_OWNER,
       repo: GITHUB_REPO,
@@ -480,17 +485,9 @@ export async function listNotes() {
   }
 
   try {
-    // Search for all .json files in data/journal
-    const results = await client.search.code({
-      q: `repo:${GITHUB_OWNER}/${GITHUB_REPO} path:data/journal filename:.json extension:json`,
-    });
-
-    if (!results.data.items || results.data.items.length === 0) {
-      return [];
-    }
-
+    const files = await listNoteFiles(client);
     const notes = [];
-    for (const item of results.data.items) {
+    for (const item of files) {
       try {
         // Skip metadata and attachment files
         if (item.path.includes('attachments') || item.path.includes('.meta.json')) {
