@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "9785cf58-74e9-4d7d-93f9-0eeaba43986d",
+  "type": "video",
+  "name": "clip.mp4",
+  "size": 8388627,
+  "contentType": "video/mp4",
+  "parts": 3,
+  "chunkBytes": 4194304,
+  "complete": false,
+  "createdAt": "2026-10-29T16:41:38.361Z"
+}
