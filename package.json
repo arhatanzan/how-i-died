@@ -6,6 +6,7 @@
   "scripts": {
     "test": "node --test",
     "export": "node scripts/export-journal.mjs",
+    "migrate": "node scripts/migrate-to-file-db.mjs",
     "dev": "netlify dev",
     "dev:ui": "vite",
     "build": "vite build",

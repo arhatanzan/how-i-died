@@ -2,17 +2,31 @@ import { useEffect } from 'react';
 import Header from './components/Header';
 import Journal from './pages/Journal';
 import Home from './pages/Home';
+import { AdminPanel } from './pages/admin';
 import { useAuth } from './lib/auth';
 import { useNotes } from './lib/useNotes';
 
 export default function App() {
-  const isJournal = window.location.pathname.replace(/\/+$/, '') === '/journal';
+  const pathname = window.location.pathname.replace(/\/+$/, '');
+  const isJournal = pathname === '/journal';
+  const isAdmin = pathname === '/admin';
   const { authenticated } = useAuth();
   const { notes, status, error, retry, freshIds, add, update, remove } = useNotes();
 
   useEffect(() => {
-    document.title = isJournal ? 'The Journal · Arhat Anzan' : 'Arhat Anzan · How I Died';
-  }, [isJournal]);
+    if (isAdmin) {
+      document.title = 'Admin Panel · Arhat Anzan';
+    } else if (isJournal) {
+      document.title = 'The Journal · Arhat Anzan';
+    } else {
+      document.title = 'Arhat Anzan · How I Died';
+    }
+  }, [isAdmin, isJournal]);
+
+  // Admin panel doesn't need the main layout
+  if (isAdmin) {
+    return <AdminPanel />;
+  }
 
   return (
     <div className="flex min-h-dvh flex-col">
