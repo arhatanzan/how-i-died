@@ -7,7 +7,7 @@
 
 import { readTable, appendRecord, updateRecord, deleteRecord, getRecord } from './blob-db.mjs';
 import { gitImageStorage, gitMediaStorage } from './git-storage.mjs';
-import { storeAttachment } from './github-storage.mjs';
+import { storeAttachment, loadAttachment } from './github-storage.mjs';
 
 export const IMAGE_PREFIX = '/api/images/';
 
@@ -121,24 +121,59 @@ export function mediaStore() {
   return {
     async get(key, options = {}) {
       // key format: "uploadId/manifest" or "uploadId/parts/index"
-      // These are stored in GitHub, retrieve from git-storage as fallback
-      const result = await gitMediaStorage.loadManifest(key);
-      if (!result) return null;
+      // Extract upload ID and part index from key
+      let attachmentId, type;
+      
+      const manifestMatch = key.match(/^([^/]+)\/manifest$/);
+      if (manifestMatch) {
+        attachmentId = `${manifestMatch[1]}-manifest`;
+        type = 'media';
+      } else {
+        const partsMatch = key.match(/^([^/]+)\/parts\/(\d+)$/);
+        if (partsMatch) {
+          attachmentId = `${partsMatch[1]}-part-${partsMatch[2]}`;
+          type = 'media';
+        }
+      }
+      
+      if (!attachmentId) {
+        console.error('get: key does not match expected pattern', { key });
+        return null;
+      }
+      
+      console.log('get: loading from GitHub', { attachmentId, type, key });
+      const result = await loadAttachment(attachmentId, type);
+      
+      if (!result) {
+        console.warn('get: attachment not found', { attachmentId });
+        return null;
+      }
       
       if (options.type === 'arrayBuffer') {
         if (typeof result === 'string') {
           return Buffer.from(result, 'base64');
         }
+        if (Buffer.isBuffer(result)) {
+          return new Uint8Array(result);
+        }
         return result;
       }
       if (options.type === 'json') {
+        if (Buffer.isBuffer(result)) {
+          try {
+            return JSON.parse(result.toString('utf-8'));
+          } catch {
+            return result;
+          }
+        }
         return result;
       }
       return result;
     },
 
     async getMetadata(key) {
-      const result = await gitMediaStorage.loadManifest(key);
+      console.log('getMetadata: loading from GitHub', { key });
+      const result = await this.get(key, { type: 'json' });
       if (!result) return null;
       return { metadata: result, data: result };
     },
@@ -165,6 +200,7 @@ export function mediaStore() {
         
         // Store media part in GitHub
         const attachmentId = `${uploadId}-part-${partIndex}`;
+        console.log('set: storing media part in GitHub', { attachmentId, size: buffer.length });
         const result = await storeAttachment(attachmentId, 'media', buffer, options.metadata || {});
         if (!result) {
           throw new Error('Failed to store media part in GitHub');
@@ -181,7 +217,7 @@ export function mediaStore() {
       }
       
       const uploadId = match[1];
-      console.log('setJSON: storing manifest', { uploadId, size: JSON.stringify(data).length });
+      console.log('setJSON: storing manifest in GitHub', { uploadId, size: JSON.stringify(data).length });
       
       // Store manifest in GitHub
       const manifestJson = JSON.stringify(data);
@@ -198,19 +234,15 @@ export function mediaStore() {
       const match = key.match(/^([^/]+)(?:\/parts\/\d+|\/manifest)?$/);
       if (match) {
         const uploadId = match[1];
-        // Note: GitHub storage doesn't have a delete mechanism
-        // Files are stored but not removed - this matches the immutable nature of git
+        console.log('delete: deleting media upload from GitHub', { uploadId });
+        // TODO: implement deleteAttachment in github-storage.mjs
       }
     },
 
     async list() {
-      // List uploads from git-storage (local dev) or empty array for production
-      try {
-        return await gitMediaStorage.listUploads();
-      } catch (error) {
-        console.error('Failed to list uploads:', error);
-        return [];
-      }
+      // TODO: implement listAttachments in github-storage.mjs
+      console.warn('list: not implemented yet');
+      return [];
     },
   };
 }

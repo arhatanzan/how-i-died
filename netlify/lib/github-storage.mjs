@@ -217,6 +217,61 @@ export async function updateManifest(notes) {
 }
 
 /**
+ * Load an attachment from GitHub
+ * Retrieves base64-encoded binary data
+ */
+export async function loadAttachment(attachmentId, type) {
+  const client = getOctokit();
+  if (!client) {
+    console.error('GitHub client not initialized: GITHUB_TOKEN missing');
+    return null;
+  }
+
+  if (!GITHUB_REPO) {
+    console.error('GitHub storage not available: GITHUB_REPO environment variable not set');
+    return null;
+  }
+
+  try {
+    const path = `${DATA_FOLDER}/attachments/${type}/${attachmentId}`;
+    
+    const response = await client.repos.getContent({
+      owner: GITHUB_OWNER,
+      repo: GITHUB_REPO,
+      path,
+    });
+
+    if (!response.data.content) {
+      console.warn('Attachment found but has no content:', { path });
+      return null;
+    }
+
+    // GitHub returns base64-encoded content
+    const content = Buffer.from(response.data.content, 'base64');
+    
+    // Try to parse as JSON first (for manifests)
+    try {
+      return JSON.parse(content.toString('utf-8'));
+    } catch {
+      // If not JSON, return as buffer
+      return content;
+    }
+  } catch (error) {
+    if (error.status === 404) {
+      // File not found is not an error
+      return null;
+    }
+    console.error('Failed to load attachment from GitHub:', { 
+      attachmentId, 
+      type, 
+      error: error.message,
+      status: error.status
+    });
+    return null;
+  }
+}
+
+/**
  * Get a note's GitHub URL
  */
 export function getNoteGitHubPath(noteId, createdAt) {
