@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "26ad7f41-1433-4b46-b446-c888eca164ce",
+  "type": "audio",
+  "name": "memo.webm",
+  "size": 4,
+  "contentType": "audio/webm",
+  "parts": 1,
+  "chunkBytes": 4194304,
+  "complete": false,
+  "createdAt": "2026-10-29T16:41:38.414Z"
+}
