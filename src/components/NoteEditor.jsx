@@ -189,7 +189,10 @@ export default function NoteEditor({ note, onSave, onCancel }) {
             <label><span className="label">Attach as</span><select className="field" value={linkType} onChange={(event) => setLinkType(event.target.value)}><option value="link">Link or embed</option><option value="image">Photo URL</option></select></label>
             <label><span className="label">URL</span><input className="field" type="url" value={linkUrl} onChange={(event) => setLinkUrl(event.target.value)} placeholder="https://…" onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addLink(); } }} /></label>
             <label><span className="label">Title / description</span><input className="field" value={linkTitle} onChange={(event) => setLinkTitle(event.target.value)} maxLength={linkType === 'image' ? 500 : 200} /></label>
-            <button type="button" className="btn-outline" onClick={addLink}>Add to note</button>
+            <div className="editor-link-actions">
+              <button type="button" className="btn-outline" onClick={addLink}>Add to note</button>
+              <button type="button" className="text-button" onClick={() => { setLinkUrl(''); setLinkTitle(''); setShowLink(false); }}>Cancel</button>
+            </div>
             <p className="editor-hint">YouTube, Vimeo, Spotify, and SoundCloud become click-to-load players. Other URLs become link cards.</p>
           </div>
         )}
