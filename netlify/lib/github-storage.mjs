@@ -217,6 +217,112 @@ export async function updateManifest(notes) {
 }
 
 /**
+ * Load an attachment's metadata from GitHub
+ * For binary files, loads the associated .meta.json file
+ */
+export async function loadAttachmentMetadata(attachmentId, type) {
+  const client = getOctokit();
+  if (!client) {
+    console.error('GitHub client not initialized: GITHUB_TOKEN missing');
+    return null;
+  }
+
+  if (!GITHUB_REPO) {
+    console.error('GitHub storage not available: GITHUB_REPO environment variable not set');
+    return null;
+  }
+
+  try {
+    // Try to load metadata file
+    const metaPath = `${DATA_FOLDER}/attachments/${type}/${attachmentId}.meta.json`;
+    
+    const response = await client.repos.getContent({
+      owner: GITHUB_OWNER,
+      repo: GITHUB_REPO,
+      path: metaPath,
+    });
+
+    if (!response.data.content) {
+      return null;
+    }
+
+    // GitHub returns base64-encoded content
+    const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
+    return JSON.parse(content);
+  } catch (error) {
+    if (error.status === 404) {
+      // Metadata file not found is not an error
+      return null;
+    }
+    console.error('Failed to load attachment metadata from GitHub:', { 
+      attachmentId, 
+      type, 
+      error: error.message,
+      status: error.status
+    });
+    return null;
+  }
+}
+
+/**
+ * Store an attachment's metadata in GitHub
+ */
+export async function storeAttachmentMetadata(attachmentId, type, metadata) {
+  const client = getOctokit();
+  if (!client) {
+    console.error('GitHub client not initialized: GITHUB_TOKEN missing');
+    return null;
+  }
+
+  if (!GITHUB_REPO) {
+    console.error('GitHub storage not available: GITHUB_REPO environment variable not set');
+    return null;
+  }
+
+  try {
+    const metaPath = `${DATA_FOLDER}/attachments/${type}/${attachmentId}.meta.json`;
+    
+    const content = JSON.stringify(metadata, null, 2);
+    const contentBase64 = Buffer.from(content).toString('base64');
+
+    // Try to get existing file
+    let sha;
+    try {
+      const existing = await client.repos.getContent({
+        owner: GITHUB_OWNER,
+        repo: GITHUB_REPO,
+        path: metaPath,
+      });
+      sha = existing.data.sha;
+    } catch (error) {
+      if (error.status !== 404) throw error;
+    }
+
+    const result = await client.repos.createOrUpdateFileContents({
+      owner: GITHUB_OWNER,
+      repo: GITHUB_REPO,
+      path: metaPath,
+      message: `Store ${type} metadata: ${attachmentId}`,
+      content: contentBase64,
+      sha,
+    });
+
+    return {
+      url: result.data.html_url,
+      path: metaPath,
+    };
+  } catch (error) {
+    console.error('Failed to store attachment metadata in GitHub:', { 
+      attachmentId, 
+      type, 
+      error: error.message,
+      status: error.status
+    });
+    return null;
+  }
+}
+
+/**
  * Load an attachment from GitHub
  * Retrieves base64-encoded binary data
  */

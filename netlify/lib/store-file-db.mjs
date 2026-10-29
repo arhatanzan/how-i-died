@@ -7,7 +7,7 @@
 
 import { readTable, appendRecord, updateRecord, deleteRecord, getRecord } from './blob-db.mjs';
 import { gitImageStorage, gitMediaStorage } from './git-storage.mjs';
-import { storeAttachment, loadAttachment } from './github-storage.mjs';
+import { storeAttachment, loadAttachment, storeAttachmentMetadata, loadAttachmentMetadata } from './github-storage.mjs';
 
 export const IMAGE_PREFIX = '/api/images/';
 
@@ -173,6 +173,17 @@ export function mediaStore() {
 
     async getMetadata(key) {
       console.log('getMetadata: loading from GitHub', { key });
+      // For metadata keys, load the .meta.json file
+      const partsMatch = key.match(/^([^/]+)\/parts\/(\d+)$/);
+      if (partsMatch) {
+        const uploadId = partsMatch[1];
+        const partIndex = partsMatch[2];
+        const attachmentId = `${uploadId}-part-${partIndex}`;
+        const metadata = await loadAttachmentMetadata(attachmentId, 'media');
+        if (!metadata) return null;
+        return { metadata, data: metadata };
+      }
+      // For manifest keys, load the JSON directly
       const result = await this.get(key, { type: 'json' });
       if (!result) return null;
       return { metadata: result, data: result };
@@ -204,6 +215,12 @@ export function mediaStore() {
         const result = await storeAttachment(attachmentId, 'media', buffer, options.metadata || {});
         if (!result) {
           throw new Error('Failed to store media part in GitHub');
+        }
+        
+        // Store metadata alongside the binary data
+        if (options.metadata) {
+          console.log('set: storing media part metadata', { attachmentId, metadata: options.metadata });
+          await storeAttachmentMetadata(attachmentId, 'media', options.metadata);
         }
       }
     },
