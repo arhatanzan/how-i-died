@@ -7,8 +7,7 @@ import { Octokit } from '@octokit/rest';
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const GITHUB_OWNER = process.env.GITHUB_OWNER || 'arhatanzan';
-// Use environment variable for repository name, no hardcoded default
-const GITHUB_REPO = process.env.GITHUB_REPO;
+const GITHUB_REPO = process.env.GITHUB_REPO || 'how-i-died';
 const DATA_FOLDER = 'data/journal';
 
 let octokit = null;
