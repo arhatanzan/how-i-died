@@ -7,7 +7,8 @@ import { Octokit } from '@octokit/rest';
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const GITHUB_OWNER = process.env.GITHUB_OWNER || 'arhatanzan';
-const GITHUB_REPO = process.env.GITHUB_REPO || 'how-i-died';
+// Repository name from environment - must be set on Netlify
+const GITHUB_REPO = process.env.GITHUB_REPO;
 const DATA_FOLDER = 'data/journal';
 
 let octokit = null;
