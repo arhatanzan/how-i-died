@@ -1,4 +1,9 @@
 import test from 'node:test';
+test('Instagram posts and reels use fixed iframe embed paths', () => {
+  assert.equal(getEmbed('https://www.instagram.com/p/CQA123abc45/').src, 'https://www.instagram.com/p/CQA123abc45/embed/captioned/');
+  assert.equal(getEmbed('https://www.instagram.com/reel/CQA123abc45/').src, 'https://www.instagram.com/reel/CQA123abc45/embed/captioned/');
+  assert.equal(getEmbed('https://instagram.com.evil.example/p/CQA123abc45/'), null);
+});
 import assert from 'node:assert/strict';
 import {
   getAttachments, getEmbed, hasNoteContent, isImageUrl, MAX_ATTACHMENTS,

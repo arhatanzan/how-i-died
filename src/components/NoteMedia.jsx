@@ -82,50 +82,7 @@ function LinkAttachment({ attachment }) {
   const embed = getEmbed(attachment.url);
   const hostname = new URL(attachment.url).hostname.replace(/^www\./, '');
   const label = attachment.title || (embed ? `A little ${embed.kind === 'audio' ? 'listening' : 'watching'}` : hostname);
-  
-  useEffect(() => {
-    if (loaded && embed?.provider === 'Instagram' && window.instgrm) {
-      window.instgrm.Embeds.process();
-    }
-  }, [loaded, embed?.provider]);
-  
-  if (embed?.provider === 'Instagram') {
-    return (
-      <div className="note-link note-embed note-embed-video">
-        {loaded ? (
-          <>
-            <blockquote 
-              className="instagram-media" 
-              data-instgrm-permalink={attachment.url}
-              style={{
-                backgroundColor: 'var(--color-paper)',
-                border: '1px solid var(--color-line)',
-                borderRadius: '3px',
-                boxShadow: '0 0 1px rgba(0,0,0,0.5), 0 1px 10px rgba(0,0,0,0.15)',
-                margin: '1px',
-                maxWidth: '540px',
-                minWidth: '326px',
-                padding: '0',
-                width: '99.375%'
-              }}
-            />
-            <script async src="//www.instagram.com/embed.js"></script>
-          </>
-        ) : (
-          <button type="button" className="embed-cover" onClick={() => setLoaded(true)}>
-            <span className="embed-play" aria-hidden="true">▷</span>
-            <span>Load Instagram</span>
-            <small>Connects to Instagram only when you choose.</small>
-          </button>
-        )}
-        <a className="note-link-caption" href={attachment.url} target="_blank" rel="noopener noreferrer">
-          <span><small>Instagram</small><strong>{label}</strong></span>
-          <span aria-hidden="true">↗</span>
-        </a>
-      </div>
-    );
-  }
-  
+
   return (
     <div className={`note-link ${embed ? `note-embed note-embed-${embed.kind}` : ''}`}>
       {embed && (loaded ? (
@@ -166,6 +123,7 @@ function FileAttachment({ attachment }) {
       {loaded && !source.url && !source.error && <p role="status">Loading · {source.progress}%</p>}
       {source.url && attachment.type === 'audio' && <audio controls preload="metadata" src={source.url} aria-label={label} onError={() => setPlaybackError('This browser cannot play this audio format. Try downloading it to listen in another app.')} />}
       {source.url && attachment.type === 'video' && <video controls playsInline preload="metadata" src={source.url} aria-label={label} onError={() => setPlaybackError('This browser cannot play this video format. Try downloading it to watch in another app.')} />}
+      {source.url && <a className="text-button" href={source.url} download={attachment.name || 'journal-attachment'}>Download {label || 'file'}</a>}
       {source.error && <p className="editor-error" role="alert">{source.error} <button type="button" className="text-button" onClick={source.retry}>Try again</button></p>}
       {playbackError && <p className="editor-error" role="alert">{playbackError}</p>}
     </figure>

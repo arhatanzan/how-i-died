@@ -87,7 +87,7 @@ export function getEmbed(value) {
     if (parts[0] === 'reel' || parts[0] === 'p') {
       const id = parts[1];
       if (id && /^[\w-]+$/.test(id)) {
-        return { provider: 'Instagram', src: `https://www.instagram.com/embed/captioned/?url=${encodeURIComponent(normalized)}`, kind: 'video' };
+        return { provider: 'Instagram', src: `https://www.instagram.com/${parts[0]}/${id}/embed/captioned/`, kind: 'video' };
       }
     }
   }

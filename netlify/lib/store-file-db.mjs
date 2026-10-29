@@ -6,7 +6,7 @@
  */
 
 import { readTable, appendRecord, updateRecord, deleteRecord, getRecord } from './blob-db.mjs';
-import { storeAttachment, loadAttachment, storeAttachmentMetadata, loadAttachmentMetadata } from './github-storage.mjs';
+import { storeAttachment, loadAttachment, storeAttachmentMetadata, loadAttachmentMetadata, deleteAttachment } from './github-storage.mjs';
 
 export const IMAGE_PREFIX = '/api/images/';
 
@@ -109,8 +109,7 @@ export function imageStore() {
     },
 
     async delete(key) {
-      // Note: GitHub storage doesn't support deletion
-      console.warn('Image deletion not implemented for GitHub storage:', key);
+      await deleteAttachment(key, 'images');
     },
 
     async list() {
@@ -146,7 +145,7 @@ export function mediaStore() {
       }
       
       console.log('get: loading from GitHub', { attachmentId, type, key });
-      const result = await loadAttachment(attachmentId, type);
+      const result = await loadAttachment(attachmentId, type, { json: options.type === 'json' });
       
       if (!result) {
         console.warn('get: attachment not found', { attachmentId });
@@ -252,12 +251,11 @@ export function mediaStore() {
     },
 
     async delete(key) {
-      const match = key.match(/^([^/]+)(?:\/parts\/\d+|\/manifest)?$/);
-      if (match) {
-        const uploadId = match[1];
-        console.log('delete: deleting media upload from GitHub', { uploadId });
-        // TODO: implement deleteAttachment in github-storage.mjs
-      }
+      const manifest = key.match(/^([^/]+)\/manifest$/);
+      const part = key.match(/^([^/]+)\/parts\/(\d+)$/);
+      const attachmentId = manifest ? `${manifest[1]}-manifest` : part ? `${part[1]}-part-${part[2]}` : null;
+      if (!attachmentId) throw new Error(`Invalid media key: ${key}`);
+      await deleteAttachment(attachmentId, 'media');
     },
 
     async list() {

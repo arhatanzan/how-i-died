@@ -40,7 +40,7 @@ async function readTableFromFile(tableName) {
     return notes || [];
   } catch (error) {
     console.error('Failed to read notes from GitHub:', error);
-    return [];
+    throw error;
   }
 }
 

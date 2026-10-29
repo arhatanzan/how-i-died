@@ -1,4 +1,5 @@
 import { Octokit } from '@octokit/rest';
+import { mediaId } from '../../shared/media.js';
 
 /**
  * GitHub-based permanent storage for journal data
@@ -16,12 +17,10 @@ let octokit = null;
 function getOctokit() {
   if (!octokit) {
     if (!GITHUB_TOKEN) {
-      console.error('GITHUB_TOKEN environment variable not set. GitHub storage will be unavailable.');
-      return null;
+      throw new Error('GITHUB_TOKEN environment variable not set.');
     }
     if (!GITHUB_REPO) {
-      console.error('GITHUB_REPO environment variable not set. GitHub storage will be unavailable.');
-      return null;
+      throw new Error('GITHUB_REPO environment variable not set.');
     }
     octokit = new Octokit({ auth: GITHUB_TOKEN });
   }
@@ -49,17 +48,12 @@ export async function storeNoteMetadata(note) {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     
-    const path = `${DATA_FOLDER}/${year}/${month}/${day}/${note.id}.json`;
+    const path = note._githubPath || `${DATA_FOLDER}/${year}/${month}/${day}/${note.id}.json`;
     
     // Remove binary data for storage
     const storageNote = {
       ...note,
-      attachments: note.attachments?.map(att => ({
-        type: att.type,
-        url: att.url,
-        title: att.title,
-        alt: att.alt,
-      })) || [],
+      attachments: note.attachments?.map(att => ({ ...att })) || [],
       _storedAt: new Date().toISOString(),
       _githubPath: path,
     };
@@ -278,7 +272,7 @@ export async function loadAttachmentMetadata(attachmentId, type) {
       error: error.message,
       status: error.status
     });
-    return null;
+    throw error;
   }
 }
 
@@ -344,7 +338,7 @@ export async function storeAttachmentMetadata(attachmentId, type, metadata) {
  * Load an attachment from GitHub
  * Retrieves base64-encoded binary data
  */
-export async function loadAttachment(attachmentId, type) {
+export async function loadAttachment(attachmentId, type, { json = false } = {}) {
   const client = getOctokit();
   if (!client) {
     console.error('GitHub client not initialized: GITHUB_TOKEN missing');
@@ -365,21 +359,21 @@ export async function loadAttachment(attachmentId, type) {
       path,
     });
 
-    if (!response.data.content) {
-      console.warn('Attachment found but has no content:', { path });
-      return null;
+    let content;
+    if (response.data.encoding === 'none') {
+      const raw = await client.repos.getContent({
+        owner: GITHUB_OWNER,
+        repo: GITHUB_REPO,
+        path,
+        mediaType: { format: 'raw' },
+        request: { parseSuccessResponseBody: false },
+      });
+      content = Buffer.from(await new Response(raw.data).arrayBuffer());
+    } else {
+      if (!response.data.content) return null;
+      content = Buffer.from(response.data.content, 'base64');
     }
-
-    // GitHub returns base64-encoded content
-    const content = Buffer.from(response.data.content, 'base64');
-    
-    // Try to parse as JSON first (for manifests)
-    try {
-      return JSON.parse(content.toString('utf-8'));
-    } catch {
-      // If not JSON, return as buffer
-      return content;
-    }
+    return json ? JSON.parse(content.toString('utf-8')) : content;
   } catch (error) {
     if (error.status === 404) {
       // File not found is not an error
@@ -391,7 +385,27 @@ export async function loadAttachment(attachmentId, type) {
       error: error.message,
       status: error.status
     });
-    return null;
+    throw error;
+  }
+}
+
+export async function deleteAttachment(attachmentId, type) {
+  const client = getOctokit();
+  if (!client) throw new Error('GitHub storage is unavailable.');
+  const path = `${DATA_FOLDER}/attachments/${type}/${attachmentId}`;
+  for (const target of [path, `${path}.meta.json`]) {
+    try {
+      const existing = await client.repos.getContent({ owner: GITHUB_OWNER, repo: GITHUB_REPO, path: target });
+      await client.repos.deleteFile({
+        owner: GITHUB_OWNER,
+        repo: GITHUB_REPO,
+        path: target,
+        message: `Delete ${type} attachment: ${attachmentId}`,
+        sha: existing.data.sha,
+      });
+    } catch (error) {
+      if (error.status !== 404) throw error;
+    }
   }
 }
 
@@ -428,6 +442,25 @@ async function listNoteFiles(client) {
   );
 }
 
+async function restoreAttachmentMetadata(note) {
+  if (!Array.isArray(note.attachments)) return note;
+  const attachments = await Promise.all(note.attachments.map(async attachment => {
+    const assetId = mediaId(attachment.url);
+    if (!assetId || ['assetId', 'name', 'contentType', 'size'].every(key => attachment[key] !== undefined)) return attachment;
+    const manifest = await loadAttachment(`${assetId}-manifest`, 'media', { json: true });
+    if (!manifest?.complete || manifest.id !== assetId) return attachment;
+    return {
+      ...attachment,
+      assetId,
+      type: manifest.type,
+      name: manifest.name,
+      contentType: manifest.contentType,
+      size: manifest.size,
+    };
+  }));
+  return { ...note, attachments };
+}
+
 export async function loadNoteMetadata(noteId) {
   const client = getOctokit();
   if (!client) {
@@ -455,7 +488,7 @@ export async function loadNoteMetadata(noteId) {
     }
 
     const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
-    return JSON.parse(content);
+    return await restoreAttachmentMetadata({ ...JSON.parse(content), _githubPath: item.path });
   } catch (error) {
     if (error.status === 404) {
       return null;
@@ -465,7 +498,7 @@ export async function loadNoteMetadata(noteId) {
       error: error.message,
       status: error.status
     });
-    return null;
+    throw error;
   }
 }
 
@@ -503,20 +536,20 @@ export async function listNotes() {
         if (!response.data.content) continue;
 
         const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
-        const note = JSON.parse(content);
+        const note = await restoreAttachmentMetadata({ ...JSON.parse(content), _githubPath: item.path });
         // Add _id for consistency with file-based storage
         note._id = note.id;
         notes.push(note);
       } catch (error) {
         console.error('Failed to load note:', item.path, error.message);
-        continue;
+        throw error;
       }
     }
 
     return notes;
   } catch (error) {
     console.error('Failed to list notes from GitHub:', error.message);
-    return [];
+    throw error;
   }
 }
 
@@ -544,7 +577,7 @@ export async function deleteNoteData(noteId) {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
-    const path = `${DATA_FOLDER}/${year}/${month}/${day}/${noteId}.json`;
+    const path = note._githubPath || `${DATA_FOLDER}/${year}/${month}/${day}/${noteId}.json`;
 
     // Get the current file to get its SHA
     const existing = await client.repos.getContent({
@@ -572,7 +605,7 @@ export async function deleteNoteData(noteId) {
       error: error.message,
       status: error.status
     });
-    return null;
+    throw error;
   }
 }
 
