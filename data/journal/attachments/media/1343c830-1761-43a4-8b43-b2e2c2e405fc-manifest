@@ -1,1 +1,1 @@
-{"schemaVersion":1,"id":"1343c830-1761-43a4-8b43-b2e2c2e405fc","type":"file","name":"qa-document.txt","size":44,"contentType":"text/plain","parts":1,"chunkBytes":4194304,"complete":false,"createdAt":"2026-10-29T19:46:00.202Z"}
+{"schemaVersion":1,"id":"1343c830-1761-43a4-8b43-b2e2c2e405fc","type":"file","name":"qa-document.txt","size":44,"contentType":"text/plain","parts":1,"chunkBytes":4194304,"complete":true,"createdAt":"2026-10-29T19:46:00.202Z","sha256":["271ba318191532c5325e2caf464c4a524a10870e73bd7b72457de2519f43c3d6"]}
