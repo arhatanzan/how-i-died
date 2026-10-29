@@ -8,15 +8,20 @@
 .store/images/*.webp binary
 .store/images/*.bmp binary
 
-# Video and audio
-.store/media/**/*.webm binary
-.store/media/**/*.mp4 binary
-.store/media/**/*.mp3 binary
-.store/media/**/*.wav binary
-.store/media/**/*.m4a binary
-.store/media/**/*.ogg binary
-.store/media/**/*.bin binary
+# Video and audio - tracked with Git LFS for files over 100MB
+.store/media/**/*.webm filter=lfs diff=lfs merge=lfs -text
+.store/media/**/*.mp4 filter=lfs diff=lfs merge=lfs -text
+.store/media/**/*.mkv filter=lfs diff=lfs merge=lfs -text
+.store/media/**/*.mov filter=lfs diff=lfs merge=lfs -text
+.store/media/**/*.avi filter=lfs diff=lfs merge=lfs -text
+.store/media/**/*.flv filter=lfs diff=lfs merge=lfs -text
+.store/media/**/*.mp3 filter=lfs diff=lfs merge=lfs -text
+.store/media/**/*.wav filter=lfs diff=lfs merge=lfs -text
+.store/media/**/*.m4a filter=lfs diff=lfs merge=lfs -text
+.store/media/**/*.ogg filter=lfs diff=lfs merge=lfs -text
+.store/media/**/*.bin filter=lfs diff=lfs merge=lfs -text
 
 # Metadata (text files)
 .store/**/*.json text
 .store/index.jsonl text
+.store/dedup/**.json text

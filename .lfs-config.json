@@ -1,0 +1,20 @@
+{
+  "initialized": false,
+  "timestamp": null,
+  "threshold": 104857600,
+  "patterns": [
+    ".store/media/**/*.mp4",
+    ".store/media/**/*.webm",
+    ".store/media/**/*.mkv",
+    ".store/media/**/*.mov",
+    ".store/media/**/*.avi",
+    ".store/media/**/*.flv",
+    ".store/media/**/*.bin",
+    ".store/media/**/*.mp3",
+    ".store/media/**/*.wav",
+    ".store/media/**/*.m4a",
+    ".store/media/**/*.ogg"
+  ],
+  "lastUpdated": null,
+  "notes": "Initialize Git LFS with: git lfs install. Run POST /api/storage/lfs/init to set up automatically."
+}
