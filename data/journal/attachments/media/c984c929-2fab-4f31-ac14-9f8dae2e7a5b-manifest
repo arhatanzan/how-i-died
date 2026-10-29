@@ -1,1 +1,1 @@
-{"schemaVersion":1,"id":"c984c929-2fab-4f31-ac14-9f8dae2e7a5b","type":"image","name":"photo-2026-10-30-01-45-00.jpg","size":33584,"contentType":"image/jpeg","parts":1,"chunkBytes":4194304,"complete":false,"createdAt":"2026-10-29T20:15:08.587Z"}
+{"schemaVersion":1,"id":"c984c929-2fab-4f31-ac14-9f8dae2e7a5b","type":"image","name":"photo-2026-10-30-01-45-00.jpg","size":33584,"contentType":"image/jpeg","parts":1,"chunkBytes":4194304,"complete":true,"createdAt":"2026-10-29T20:15:08.587Z","sha256":["9cfa9590cf0b7def56b8b92b5f176decb1be596a068eb8dce7c22264ab429487"]}
