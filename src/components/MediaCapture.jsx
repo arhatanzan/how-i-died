@@ -76,7 +76,12 @@ export default function MediaCapture({ mode, onAdd, onClose }) {
       setStatus('error');
       return;
     }
-    setResult(new File([blob], `capture-${new Date().toISOString().replace(/[:.]/g, '-')}.${extension}`, { type: blob.type }));
+    const modeLabel = mode === 'photo' ? 'photo' : mode === 'audio' ? 'audio' : 'video';
+    const date = new Date();
+    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    const timeStr = `${String(date.getHours()).padStart(2, '0')}-${String(date.getMinutes()).padStart(2, '0')}-${String(date.getSeconds()).padStart(2, '0')}`;
+    const filename = `${modeLabel}-${dateStr}-${timeStr}.${extension}`;
+    setResult(new File([blob], filename, { type: blob.type }));
     setStatus('review');
   }
 

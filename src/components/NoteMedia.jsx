@@ -73,7 +73,6 @@ function PhotoViewer({ images, initialIndex, onClose }) {
           <button type="button" onClick={() => move(1)} aria-label="Next photo">→</button>
         </div>
       )}
-      {source.url && <a href={source.url} download={image.name} target="_blank" rel="noopener noreferrer">Open / download original ↗</a>}
     </dialog>
   );
 }
@@ -165,9 +164,8 @@ function FileAttachment({ attachment }) {
       <figcaption><strong>{label}</strong><small>{attachment.name} · {formatBytes(attachment.size)}</small></figcaption>
       {!loaded && <button type="button" className="btn-outline" onClick={() => setLoaded(true)}>{attachment.type === 'file' ? 'Prepare download' : `Load ${attachment.type}`}</button>}
       {loaded && !source.url && !source.error && <p role="status">Loading · {source.progress}%</p>}
-      {source.url && attachment.type === 'audio' && <audio controls preload="metadata" src={source.url} aria-label={label} onError={() => setPlaybackError('This browser cannot play this audio format. Download it to listen in another app.')} />}
-      {source.url && attachment.type === 'video' && <video controls playsInline preload="metadata" src={source.url} aria-label={label} onError={() => setPlaybackError('This browser cannot play this video format. Download it to watch in another app.')} />}
-      {source.url && <a className="text-button" href={source.url} download={attachment.name}>Download file</a>}
+      {source.url && attachment.type === 'audio' && <audio controls preload="metadata" src={source.url} aria-label={label} onError={() => setPlaybackError('This browser cannot play this audio format. Try downloading it to listen in another app.')} />}
+      {source.url && attachment.type === 'video' && <video controls playsInline preload="metadata" src={source.url} aria-label={label} onError={() => setPlaybackError('This browser cannot play this video format. Try downloading it to watch in another app.')} />}
       {source.error && <p className="editor-error" role="alert">{source.error} <button type="button" className="text-button" onClick={source.retry}>Try again</button></p>}
       {playbackError && <p className="editor-error" role="alert">{playbackError}</p>}
     </figure>
