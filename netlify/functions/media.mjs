@@ -37,11 +37,9 @@ export default async (req, context) => {
     const data = await mediaStore().get(chunkKey(id, Number(part)), { type: 'arrayBuffer' });
     if (!data) return fail(404, 'File part is missing.');
     return new Response(data, { headers: {
-      'content-type': 'application/octet-stream',
-      'content-disposition': 'attachment',
+      'content-type': manifest.contentType || 'application/octet-stream',
       'cache-control': 'private, no-store',
       'x-content-type-options': 'nosniff',
-      'content-security-policy': "default-src 'none'; sandbox",
     } });
   }
   if (req.method === 'DELETE' && part === undefined && !action) {

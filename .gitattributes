@@ -1,0 +1,22 @@
+# Git configuration for storing binary files
+
+# Images
+.store/images/*.jpg binary
+.store/images/*.jpeg binary
+.store/images/*.png binary
+.store/images/*.gif binary
+.store/images/*.webp binary
+.store/images/*.bmp binary
+
+# Video and audio
+.store/media/**/*.webm binary
+.store/media/**/*.mp4 binary
+.store/media/**/*.mp3 binary
+.store/media/**/*.wav binary
+.store/media/**/*.m4a binary
+.store/media/**/*.ogg binary
+.store/media/**/*.bin binary
+
+# Metadata (text files)
+.store/**/*.json text
+.store/index.jsonl text

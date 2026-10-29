@@ -1,11 +1,11 @@
 /**
- * Store adapter that uses Netlify Blobs for production and file-based storage for development
- * Provides the same interface as the Netlify blobs store
- * Images are stored as binary files in .data/images/ instead of base64-encoded blobs
+ * Store adapter that persists all files to git (.store/ directory)
+ * This ensures files are committed to the repository and won't be lost if Netlify changes
+ * Provides the same interface as Netlify blobs store
  */
 
 import { readTable, appendRecord, updateRecord, deleteRecord, getRecord } from './blob-db.mjs';
-import { imageStorage, mediaStorage } from './file-storage.mjs';
+import { gitImageStorage, gitMediaStorage } from './git-storage.mjs';
 
 export const IMAGE_PREFIX = '/api/images/';
 
@@ -52,11 +52,11 @@ export async function deleteNote(id) {
   return await deleteRecord('notes', note._id);
 }
 
-// Image store simulation using file-based storage
+// Image store simulation using git-backed file storage
 export function imageStore() {
   return {
     async get(key, options = {}) {
-      const result = await imageStorage.load(key);
+      const result = await gitImageStorage.load(key);
       if (!result) return null;
       
       if (options.type === 'arrayBuffer') {
@@ -69,7 +69,7 @@ export function imageStore() {
     },
 
     async getWithMetadata(key, options = {}) {
-      const result = await imageStorage.load(key);
+      const result = await gitImageStorage.load(key);
       if (!result) return null;
       
       let data = result.data;
@@ -101,24 +101,24 @@ export function imageStore() {
         buffer = Buffer.from(data);
       }
       
-      await imageStorage.save(key, buffer, options.metadata || {});
+      await gitImageStorage.save(key, buffer, options.metadata || {});
     },
 
     async delete(key) {
-      await imageStorage.delete(key);
+      await gitImageStorage.delete(key);
     },
 
     async list() {
-      return await imageStorage.list();
+      return await gitImageStorage.list();
     },
   };
 }
 
-// Media store simulation using file-based storage
+// Media store simulation using git-backed storage
 export function mediaStore() {
   return {
     async get(key, options = {}) {
-      const result = await mediaStorage.loadManifest(key);
+      const result = await gitMediaStorage.loadManifest(key);
       if (!result) return null;
       
       if (options.type === 'arrayBuffer') {
@@ -134,7 +134,7 @@ export function mediaStore() {
     },
 
     async getMetadata(key) {
-      const result = await mediaStorage.loadManifest(key);
+      const result = await gitMediaStorage.loadManifest(key);
       if (!result) return null;
       return {
         metadata: result,
@@ -161,7 +161,7 @@ export function mediaStore() {
       if (match) {
         const uploadId = match[1];
         const partIndex = parseInt(match[2], 10);
-        await mediaStorage.savePart(uploadId, partIndex, buffer);
+        await gitMediaStorage.savePart(uploadId, partIndex, buffer);
       }
     },
 
@@ -170,7 +170,7 @@ export function mediaStore() {
       const match = key.match(/^([^/]+)\/manifest$/);
       if (match) {
         const uploadId = match[1];
-        await mediaStorage.saveManifest(uploadId, data);
+        await gitMediaStorage.saveManifest(uploadId, data);
       }
     },
 
@@ -178,12 +178,12 @@ export function mediaStore() {
       const match = key.match(/^([^/]+)(?:\/parts\/\d+|\/manifest)?$/);
       if (match) {
         const uploadId = match[1];
-        await mediaStorage.deleteUpload(uploadId);
+        await gitMediaStorage.deleteUpload(uploadId);
       }
     },
 
     async list() {
-      return await mediaStorage.listUploads();
+      return await gitMediaStorage.listUploads();
     },
   };
 }
