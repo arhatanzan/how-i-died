@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "3c26850d-d57d-4275-b7fd-1fadde946cde",
+  "type": "file",
+  "name": "notes.txt",
+  "size": 4,
+  "contentType": "text/plain",
+  "parts": 1,
+  "chunkBytes": 4194304,
+  "complete": false,
+  "createdAt": "2026-10-29T16:41:38.441Z"
+}
