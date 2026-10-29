@@ -57,7 +57,7 @@ export function AdminPanel() {
 
   const checkAuth = async () => {
     try {
-      const response = await fetch('/api/admin/tables');
+      const response = await fetch('/api/admin/tables', { credentials: 'same-origin' });
       if (response.ok) {
         setAuthenticated(true);
         loadData();
@@ -106,8 +106,8 @@ export function AdminPanel() {
     setApiError('');
     try {
       const [notesRes, statsRes] = await Promise.all([
-        fetch('/api/admin/table/notes'),
-        fetch('/api/admin/stats'),
+        fetch('/api/admin/table/notes', { credentials: 'same-origin' }),
+        fetch('/api/admin/stats', { credentials: 'same-origin' }),
       ]);
 
       if (notesRes.ok) {
@@ -138,6 +138,7 @@ export function AdminPanel() {
     try {
       await fetch('/api/logout', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'x-requested-with': APP_REQUEST_ID },
       });
     } catch (error) {
@@ -160,6 +161,7 @@ export function AdminPanel() {
     try {
       const response = await fetch(`/api/admin/record/notes/${noteId}`, {
         method: 'DELETE',
+        credentials: 'same-origin',
         headers: { 'x-requested-with': APP_REQUEST_ID },
       });
 
@@ -188,7 +190,9 @@ export function AdminPanel() {
     setLoading(true);
     setApiError('');
     try {
-      const response = await fetch(`/api/admin/export-db/notes/${exportFormat}`);
+      const response = await fetch(`/api/admin/export-db/notes/${exportFormat}`, {
+        credentials: 'same-origin',
+      });
       if (response.ok) {
         const data = await response.json();
         
