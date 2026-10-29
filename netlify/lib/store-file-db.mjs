@@ -1,11 +1,12 @@
 /**
- * Store adapter that persists all files to git (.store/ directory)
- * This ensures files are committed to the repository and won't be lost if Netlify changes
- * Provides the same interface as Netlify blobs store
+ * Store adapter that persists all files using GitHub API
+ * - Notes: Stored in .data/ directory (persists across deployments)
+ * - Media & Images: Stored in GitHub repository via storeAttachment()
  */
 
 import { readTable, appendRecord, updateRecord, deleteRecord, getRecord } from './blob-db.mjs';
 import { gitImageStorage, gitMediaStorage } from './git-storage.mjs';
+import { storeAttachment } from './github-storage.mjs';
 
 export const IMAGE_PREFIX = '/api/images/';
 
@@ -114,7 +115,7 @@ export function imageStore() {
   };
 }
 
-// Media store simulation using git-backed storage
+// Media store - uses GitHub API to store media, git storage for local dev
 export function mediaStore() {
   return {
     async get(key, options = {}) {
@@ -161,6 +162,12 @@ export function mediaStore() {
       if (match) {
         const uploadId = match[1];
         const partIndex = parseInt(match[2], 10);
+        
+        // Store in GitHub
+        const attachmentId = `${uploadId}-part-${partIndex}`;
+        await storeAttachment(attachmentId, 'media', buffer, options.metadata || {});
+        
+        // Also store locally for dev
         await gitMediaStorage.savePart(uploadId, partIndex, buffer);
       }
     },
@@ -170,6 +177,12 @@ export function mediaStore() {
       const match = key.match(/^([^/]+)\/manifest$/);
       if (match) {
         const uploadId = match[1];
+        
+        // Store manifest in GitHub
+        const manifestJson = JSON.stringify(data);
+        await storeAttachment(`${uploadId}-manifest`, 'media', Buffer.from(manifestJson), {});
+        
+        // Also store locally for dev
         await gitMediaStorage.saveManifest(uploadId, data);
       }
     },
@@ -178,6 +191,8 @@ export function mediaStore() {
       const match = key.match(/^([^/]+)(?:\/parts\/\d+|\/manifest)?$/);
       if (match) {
         const uploadId = match[1];
+        // Note: GitHub storage doesn't have a delete mechanism in current implementation
+        // Files are stored but not removed - this matches the immutable nature of git
         await gitMediaStorage.deleteUpload(uploadId);
       }
     },

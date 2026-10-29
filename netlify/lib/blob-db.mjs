@@ -1,35 +1,14 @@
 /**
- * Netlify Blobs-based database adapter
- * 
- * This adapter provides persistent storage for Netlify deployments using @netlify/blobs.
- * It automatically falls back to file-based storage during local development.
+ * File-based database adapter for persistent storage
+ * Stores all note metadata in .data/ directory
+ * Works in both local development and Netlify production
  */
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
-let blobsStore;
-let isProduction = false;
-
-// Initialize blobs store on production
-async function initializeBlobs() {
-  if (blobsStore) return;
-  
-  try {
-    // @netlify/blobs is only available in production Netlify environment
-    // It will throw in local dev, which we catch and fallback to file storage
-    const { getStore } = await import('@netlify/blobs');
-    blobsStore = getStore({ name: 'journal-db', consistency: 'strong' });
-    isProduction = true;
-  } catch (e) {
-    // Not in production environment, will use file storage
-    blobsStore = null;
-    isProduction = false;
-  }
-}
-
-// File-based fallback for local development
+// File-based storage for all environments
 const DATA_DIR = path.join(process.cwd(), '.data');
 const TABLES_DIR = path.join(DATA_DIR, 'tables');
 
@@ -145,128 +124,25 @@ async function getRecordFromFile(tableName, recordId) {
   return records.find(r => r._id === recordId);
 }
 
-// Blob-based operations (production)
-async function readTableFromBlobs(tableName) {
-  try {
-    const key = `table:${tableName}`;
-    const data = await blobsStore.get(key);
-    
-    if (!data) return [];
-    
-    const text = typeof data === 'string' ? data : new TextDecoder().decode(data);
-    return text
-      .trim()
-      .split('\n')
-      .filter(line => line.trim())
-      .map(line => {
-        try {
-          return JSON.parse(line);
-        } catch (e) {
-          console.error('Failed to parse JSONL line from blob:', line, e);
-          return null;
-        }
-      })
-      .filter(item => item !== null);
-  } catch (error) {
-    console.error('Failed to read from blobs:', error);
-    return [];
-  }
-}
-
-async function appendRecordToBlobs(tableName, record) {
-  const withId = {
-    _id: crypto.randomUUID(),
-    ...record,
-  };
-  
-  try {
-    const key = `table:${tableName}`;
-    const records = await readTableFromBlobs(tableName);
-    records.push(withId);
-    const content = records.map(r => JSON.stringify(r)).join('\n') + '\n';
-    
-    await blobsStore.set(key, content);
-    return withId;
-  } catch (error) {
-    console.error('Failed to append to blobs:', error);
-    throw error;
-  }
-}
-
-async function updateRecordInBlobs(tableName, recordId, updates) {
-  try {
-    const records = await readTableFromBlobs(tableName);
-    const index = records.findIndex(r => r._id === recordId);
-    
-    if (index === -1) return null;
-    
-    const updated = { ...records[index], ...updates };
-    records[index] = updated;
-    
-    const key = `table:${tableName}`;
-    const content = records.map(r => JSON.stringify(r)).join('\n') + '\n';
-    await blobsStore.set(key, content);
-    
-    return updated;
-  } catch (error) {
-    console.error('Failed to update in blobs:', error);
-    throw error;
-  }
-}
-
-async function deleteRecordFromBlobs(tableName, recordId) {
-  try {
-    const records = await readTableFromBlobs(tableName);
-    const removed = records.find(r => r._id === recordId);
-    
-    if (!removed) return null;
-    
-    const filtered = records.filter(r => r._id !== recordId);
-    const key = `table:${tableName}`;
-    const content = filtered.map(r => JSON.stringify(r)).join('\n');
-    
-    if (filtered.length === 0) {
-      await blobsStore.set(key, '');
-    } else {
-      await blobsStore.set(key, content + '\n');
-    }
-    
-    return removed;
-  } catch (error) {
-    console.error('Failed to delete from blobs:', error);
-    throw error;
-  }
-}
-
-async function getRecordFromBlobs(tableName, recordId) {
-  try {
-    const records = await readTableFromBlobs(tableName);
-    return records.find(r => r._id === recordId);
-  } catch (error) {
-    console.error('Failed to get record from blobs:', error);
-    return null;
-  }
-}
-
-// Public API - automatically selects file or blob storage
+// Public API - uses file storage only
 export async function readTable(tableName) {
-  await initializeBlobs();
-  return isProduction && blobsStore ? readTableFromBlobs(tableName) : readTableFromFile(tableName);
+  return readTableFromFile(tableName);
 }
 
 export async function appendRecord(tableName, record) {
-  await initializeBlobs();
-  return isProduction && blobsStore ? appendRecordToBlobs(tableName, record) : appendRecordToFile(tableName, record);
+  return appendRecordToFile(tableName, record);
 }
 
 export async function updateRecord(tableName, recordId, updates) {
-  await initializeBlobs();
-  return isProduction && blobsStore ? updateRecordInBlobs(tableName, recordId, updates) : updateRecordInFile(tableName, recordId, updates);
+  return updateRecordInFile(tableName, recordId, updates);
 }
 
 export async function deleteRecord(tableName, recordId) {
-  await initializeBlobs();
-  return isProduction && blobsStore ? deleteRecordFromBlobs(tableName, recordId) : deleteRecordFromFile(tableName, recordId);
+  return deleteRecordFromFile(tableName, recordId);
+}
+
+export async function getRecord(tableName, recordId) {
+  return getRecordFromFile(tableName, recordId);
 }
 
 export async function getRecord(tableName, recordId) {
