@@ -16,10 +16,25 @@ async function ensureDataDir() {
 
 // Get table file path - prevents directory traversal attacks
 function getTablePath(tableName) {
-  const safeName = path.basename(tableName);
-  if (!safeName || safeName.includes('..') || safeName.includes('/')) {
-    throw new Error('Invalid table name');
+  if (!tableName || typeof tableName !== 'string') {
+    throw new Error('Invalid table name: must be a non-empty string');
   }
+  
+  // Validate: no path separators or traversal attempts
+  if (tableName.includes('/') || tableName.includes('\\') || tableName.includes('..')) {
+    throw new Error('Invalid table name: cannot contain path separators or traversal sequences');
+  }
+  
+  // Ensure it's not an absolute path
+  if (path.isAbsolute(tableName)) {
+    throw new Error('Invalid table name: cannot be an absolute path');
+  }
+  
+  const safeName = path.basename(tableName);
+  if (!safeName || safeName !== tableName) {
+    throw new Error('Invalid table name: path traversal detected');
+  }
+  
   return path.join(TABLES_DIR, `${safeName}.jsonl`);
 }
 
