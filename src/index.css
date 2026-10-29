@@ -880,6 +880,38 @@ html[data-theme='light'] .admin-badge-public {
   color: var(--color-muted);
 }
 
+/* Form fields for add/edit modals */
+.admin-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.admin-textarea {
+  font-family: var(--font-note);
+  resize: vertical;
+}
+
+.admin-checkbox {
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+
+.admin-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.admin-link-info {
+  color: #4a9eff;
+}
+
+.admin-link-info:hover {
+  text-decoration: underline;
+}
+
 @media (max-width: 639px) {
   .site-header { padding: 1rem 1rem 0.5rem; }
   .site-header nav { column-gap: 0.8rem; }

@@ -25,6 +25,7 @@ export function AdminPanel() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   const [selectedNote, setSelectedNote] = useState(null);
+  const [editingNote, setEditingNote] = useState(null);
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportFormat, setExportFormat] = useState('json');
   const [exportFormats] = useState([
@@ -38,6 +39,8 @@ export function AdminPanel() {
     { id: 'rds-postgres', label: 'AWS RDS (PostgreSQL)' },
     { id: 'rds-mysql', label: 'AWS RDS (MySQL)' },
   ]);
+
+  const moods = ['terrible', 'sad', 'meh', 'ok', 'good', 'great'];
 
   useEffect(() => {
     checkAuth();
@@ -172,6 +175,11 @@ export function AdminPanel() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEditNote = (note) => {
+    setEditingNote({ ...note });
+    setSelectedNote(null);
   };
 
   const handleExportDatabase = async () => {
@@ -372,11 +380,6 @@ export function AdminPanel() {
                       <td>
                         <span className="admin-badge admin-badge-mood">
                           {note.mood}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={note.isPublic ? 'admin-badge admin-badge-public' : 'admin-badge admin-badge-private'}>
-                          {note.isPublic ? '✓ Public' : 'Private'}
                         </span>
                       </td>
                       <td>
