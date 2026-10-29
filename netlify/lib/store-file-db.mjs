@@ -6,7 +6,6 @@
  */
 
 import { readTable, appendRecord, updateRecord, deleteRecord, getRecord } from './blob-db.mjs';
-import { gitImageStorage, gitMediaStorage } from './git-storage.mjs';
 import { storeAttachment, loadAttachment, storeAttachmentMetadata, loadAttachmentMetadata } from './github-storage.mjs';
 
 export const IMAGE_PREFIX = '/api/images/';
@@ -54,37 +53,34 @@ export async function deleteNote(id) {
   return await deleteRecord('notes', note._id);
 }
 
-// Image store simulation using git-backed file storage
+// Image store using GitHub storage
 export function imageStore() {
   return {
     async get(key, options = {}) {
-      const result = await gitImageStorage.load(key);
+      const result = await loadAttachment(key, 'images');
       if (!result) return null;
       
       if (options.type === 'arrayBuffer') {
-        return result.data;
+        if (Buffer.isBuffer(result)) return new Uint8Array(result);
+        if (typeof result === 'string') return Buffer.from(result, 'base64');
+        return result;
       }
       if (options.type === 'json') {
-        return JSON.parse(result.data.toString());
+        if (Buffer.isBuffer(result)) return JSON.parse(result.toString());
+        return result;
       }
-      return result.data.toString('base64');
+      if (Buffer.isBuffer(result)) return result.toString('base64');
+      return result;
     },
 
     async getWithMetadata(key, options = {}) {
-      const result = await gitImageStorage.load(key);
-      if (!result) return null;
+      const data = await this.get(key, options);
+      if (!data) return null;
       
-      let data = result.data;
-      if (options.type === 'arrayBuffer') {
-        // Already a buffer
-        if (!(data instanceof Buffer)) {
-          data = Buffer.from(data);
-        }
-      }
-      
+      const metadata = await loadAttachmentMetadata(key, 'images');
       return {
         data,
-        metadata: result.metadata || {},
+        metadata: metadata || {},
       };
     },
 
@@ -97,21 +93,29 @@ export function imageStore() {
       } else if (Buffer.isBuffer(data)) {
         buffer = data;
       } else if (typeof data === 'string') {
-        // Assume base64 string
         buffer = Buffer.from(data, 'base64');
       } else {
         buffer = Buffer.from(data);
       }
       
-      await gitImageStorage.save(key, buffer, options.metadata || {});
+      const result = await storeAttachment(key, 'images', buffer, options.metadata || {});
+      if (!result) {
+        throw new Error('Failed to store image in GitHub');
+      }
+      
+      if (options.metadata) {
+        await storeAttachmentMetadata(key, 'images', options.metadata);
+      }
     },
 
     async delete(key) {
-      await gitImageStorage.delete(key);
+      // Note: GitHub storage doesn't support deletion
+      console.warn('Image deletion not implemented for GitHub storage:', key);
     },
 
     async list() {
-      return await gitImageStorage.list();
+      // Note: Image listing not implemented for GitHub storage
+      return [];
     },
   };
 }

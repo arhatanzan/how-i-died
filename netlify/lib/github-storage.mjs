@@ -392,3 +392,179 @@ export function getNoteGitHubPath(noteId, createdAt) {
     url: `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/blob/main/${path}`,
   };
 }
+
+/**
+ * Load a note's metadata from GitHub by ID
+ * Searches across all date folders
+ */
+export async function loadNoteMetadata(noteId) {
+  const client = getOctokit();
+  if (!client) {
+    console.error('GitHub client not initialized: GITHUB_TOKEN missing');
+    return null;
+  }
+
+  if (!GITHUB_REPO) {
+    console.error('GitHub storage not available: GITHUB_REPO environment variable not set');
+    return null;
+  }
+
+  try {
+    // Try to search for the note file
+    const results = await client.search.code({
+      q: `repo:${GITHUB_OWNER}/${GITHUB_REPO} filename:${noteId}.json path:data/journal`,
+    });
+
+    if (!results.data.items || results.data.items.length === 0) {
+      return null;
+    }
+
+    // Get the first matching file
+    const item = results.data.items[0];
+    const response = await client.repos.getContent({
+      owner: GITHUB_OWNER,
+      repo: GITHUB_REPO,
+      path: item.path,
+    });
+
+    if (!response.data.content) {
+      return null;
+    }
+
+    const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
+    return JSON.parse(content);
+  } catch (error) {
+    if (error.status === 404) {
+      return null;
+    }
+    console.error('Failed to load note metadata from GitHub:', { 
+      noteId, 
+      error: error.message,
+      status: error.status
+    });
+    return null;
+  }
+}
+
+/**
+ * List all notes from GitHub
+ */
+export async function listNotes() {
+  const client = getOctokit();
+  if (!client) {
+    console.error('GitHub client not initialized: GITHUB_TOKEN missing');
+    return [];
+  }
+
+  if (!GITHUB_REPO) {
+    console.error('GitHub storage not available: GITHUB_REPO environment variable not set');
+    return [];
+  }
+
+  try {
+    // Search for all .json files in data/journal
+    const results = await client.search.code({
+      q: `repo:${GITHUB_OWNER}/${GITHUB_REPO} path:data/journal filename:.json extension:json`,
+    });
+
+    if (!results.data.items || results.data.items.length === 0) {
+      return [];
+    }
+
+    const notes = [];
+    for (const item of results.data.items) {
+      try {
+        // Skip metadata and attachment files
+        if (item.path.includes('attachments') || item.path.includes('.meta.json')) {
+          continue;
+        }
+        
+        const response = await client.repos.getContent({
+          owner: GITHUB_OWNER,
+          repo: GITHUB_REPO,
+          path: item.path,
+        });
+
+        if (!response.data.content) continue;
+
+        const content = Buffer.from(response.data.content, 'base64').toString('utf-8');
+        const note = JSON.parse(content);
+        // Add _id for consistency with file-based storage
+        note._id = note.id;
+        notes.push(note);
+      } catch (error) {
+        console.error('Failed to load note:', item.path, error.message);
+        continue;
+      }
+    }
+
+    return notes;
+  } catch (error) {
+    console.error('Failed to list notes from GitHub:', error.message);
+    return [];
+  }
+}
+
+/**
+ * Delete a note from GitHub
+ */
+export async function deleteNoteData(noteId) {
+  const client = getOctokit();
+  if (!client) {
+    console.error('GitHub client not initialized: GITHUB_TOKEN missing');
+    return null;
+  }
+
+  if (!GITHUB_REPO) {
+    console.error('GitHub storage not available: GITHUB_REPO environment variable not set');
+    return null;
+  }
+
+  try {
+    // First find the note
+    const note = await loadNoteMetadata(noteId);
+    if (!note) return null;
+
+    const date = new Date(note.createdAt);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const path = `${DATA_FOLDER}/${year}/${month}/${day}/${noteId}.json`;
+
+    // Get the current file to get its SHA
+    const existing = await client.repos.getContent({
+      owner: GITHUB_OWNER,
+      repo: GITHUB_REPO,
+      path,
+    });
+
+    // Delete the file
+    const result = await client.repos.deleteFile({
+      owner: GITHUB_OWNER,
+      repo: GITHUB_REPO,
+      path,
+      message: `Delete note: ${noteId}`,
+      sha: existing.data.sha,
+    });
+
+    return result;
+  } catch (error) {
+    if (error.status === 404) {
+      return null;
+    }
+    console.error('Failed to delete note from GitHub:', { 
+      noteId, 
+      error: error.message,
+      status: error.status
+    });
+    return null;
+  }
+}
+
+/**
+ * Update the notes index (stub - not needed with GitHub search)
+ */
+export async function updateNoteIndex(notes) {
+  // Index is maintained automatically by GitHub search
+  return true;
+}

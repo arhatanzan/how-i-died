@@ -1,23 +1,16 @@
 /**
- * File-based database adapter for persistent storage
- * Stores all note metadata in .data/ directory
+ * Database adapter for persistent storage via GitHub
+ * Stores all note data in the repository under data/journal/notes/
  * Works in both local development and Netlify production
  */
 
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import crypto from 'node:crypto';
+import { storeNoteMetadata, loadNoteMetadata, listNotes, deleteNoteData, updateNoteIndex } from './github-storage.mjs';
 
-// File-based storage for all environments
-const DATA_DIR = path.join(process.cwd(), '.data');
-const TABLES_DIR = path.join(DATA_DIR, 'tables');
+// GitHub-backed storage for all environments
+// Notes are stored as individual JSON files in GitHub
 
 async function ensureDataDir() {
-  try {
-    await fs.access(TABLES_DIR);
-  } catch {
-    await fs.mkdir(TABLES_DIR, { recursive: true });
-  }
+  // No-op for GitHub-backed storage - directories are implicit
 }
 
 function getTablePath(tableName) {
@@ -29,102 +22,113 @@ function getTablePath(tableName) {
     throw new Error('Invalid table name: cannot contain path separators or traversal sequences');
   }
   
-  if (path.isAbsolute(tableName)) {
-    throw new Error('Invalid table name: cannot be an absolute path');
-  }
-  
-  const safeName = path.basename(tableName);
-  if (!safeName || safeName !== tableName) {
-    throw new Error('Invalid table name: path traversal detected');
-  }
-  
-  return path.join(TABLES_DIR, `${safeName}.jsonl`);
+  return tableName;
 }
 
-// File-based operations
+// GitHub-based operations
 async function readTableFromFile(tableName) {
   await ensureDataDir();
-  const filePath = getTablePath(tableName);
+  
+  if (tableName !== 'notes') {
+    // Only 'notes' table is supported for GitHub storage
+    console.warn('readTableFromFile called for non-notes table:', tableName);
+    return [];
+  }
   
   try {
-    const content = await fs.readFile(filePath, 'utf-8');
-    return content
-      .trim()
-      .split('\n')
-      .filter(line => line.trim())
-      .map(line => {
-        try {
-          return JSON.parse(line);
-        } catch (e) {
-          console.error('Failed to parse JSONL line:', line, e);
-          return null;
-        }
-      })
-      .filter(item => item !== null);
+    const notes = await listNotes();
+    return notes || [];
   } catch (error) {
-    if (error.code === 'ENOENT') {
-      return [];
-    }
-    throw error;
+    console.error('Failed to read notes from GitHub:', error);
+    return [];
   }
 }
 
 async function appendRecordToFile(tableName, record) {
   await ensureDataDir();
-  const filePath = getTablePath(tableName);
   
-  const withId = {
-    _id: crypto.randomUUID(),
-    ...record,
-  };
+  if (tableName !== 'notes') {
+    throw new Error('Only notes table is supported');
+  }
   
-  const line = JSON.stringify(withId);
-  await fs.appendFile(filePath, line + '\n', 'utf-8');
-  
-  return withId;
+  try {
+    // Store the note in GitHub
+    const result = await storeNoteMetadata(record);
+    if (!result) {
+      throw new Error('Failed to store note in GitHub');
+    }
+    
+    // Return record with _id for consistency
+    return {
+      _id: record.id,
+      ...record,
+    };
+  } catch (error) {
+    console.error('Failed to append record to GitHub:', error);
+    throw error;
+  }
 }
 
 async function updateRecordInFile(tableName, recordId, updates) {
-  const records = await readTableFromFile(tableName);
-  const index = records.findIndex(r => r._id === recordId);
+  if (tableName !== 'notes') {
+    throw new Error('Only notes table is supported');
+  }
   
-  if (index === -1) return null;
-  
-  const updated = { ...records[index], ...updates };
-  records[index] = updated;
-  
-  const filePath = getTablePath(tableName);
-  const content = records.map(r => JSON.stringify(r)).join('\n');
-  await fs.writeFile(filePath, content + '\n', 'utf-8');
-  
-  return updated;
+  try {
+    // Load the note, update it, and store back
+    const note = await loadNoteMetadata(recordId);
+    if (!note) return null;
+    
+    const updated = { ...note, ...updates };
+    const result = await storeNoteMetadata(updated);
+    if (!result) {
+      throw new Error('Failed to update note in GitHub');
+    }
+    
+    return updated;
+  } catch (error) {
+    console.error('Failed to update record in GitHub:', error);
+    throw error;
+  }
 }
 
 async function deleteRecordFromFile(tableName, recordId) {
-  const records = await readTableFromFile(tableName);
-  const removed = records.find(r => r._id === recordId);
-  
-  if (!removed) return null;
-  
-  const filtered = records.filter(r => r._id !== recordId);
-  const filePath = getTablePath(tableName);
-  const content = filtered.map(r => JSON.stringify(r)).join('\n');
-  
-  if (filtered.length === 0) {
-    await fs.writeFile(filePath, '', 'utf-8');
-  } else {
-    await fs.writeFile(filePath, content + '\n', 'utf-8');
+  if (tableName !== 'notes') {
+    throw new Error('Only notes table is supported');
   }
   
-  return removed;
+  try {
+    // Load the note before deletion to return it
+    const note = await loadNoteMetadata(recordId);
+    if (!note) return null;
+    
+    // Delete from GitHub
+    const result = await deleteNoteData(recordId);
+    if (!result) {
+      throw new Error('Failed to delete note from GitHub');
+    }
+    
+    return note;
+  } catch (error) {
+    console.error('Failed to delete record from GitHub:', error);
+    throw error;
+  }
 }
 
 async function getRecordFromFile(tableName, recordId) {
-  const records = await readTableFromFile(tableName);
-  return records.find(r => r._id === recordId);
+  if (tableName !== 'notes') {
+    return null;
+  }
+  
+  try {
+    return await loadNoteMetadata(recordId);
+  } catch (error) {
+    console.error('Failed to get record from GitHub:', error);
+    return null;
+  }
 }
 
-// Public API - uses file storage only
+// Public API - uses GitHub storage
 export async function readTable(tableName) {
   return readTableFromFile(tableName);
 }
