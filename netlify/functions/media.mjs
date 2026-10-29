@@ -84,9 +84,17 @@ async function handleMedia(req, context) {
 
 export default async (req, context) => {
   try {
-    return await handleMedia(req, context);
+    console.log('Media request started', { method: req.method, url: req.url });
+    const result = await handleMedia(req, context);
+    console.log('Media request completed successfully');
+    return result;
   } catch (error) {
-    console.error('Media upload request failed.', { method: req.method, url: req.url, error });
+    console.error('Media upload request failed with error:', { 
+      method: req.method, 
+      url: req.url, 
+      errorMessage: error.message,
+      errorStack: error.stack
+    });
     return fail(503, 'The media storage is unavailable. Please try again; your upload has not been cleared.');
   }
 };

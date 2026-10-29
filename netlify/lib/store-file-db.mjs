@@ -175,16 +175,23 @@ export function mediaStore() {
     async setJSON(key, data, options = {}) {
       // For manifest keys in format: "uploadId/manifest"
       const match = key.match(/^([^/]+)\/manifest$/);
-      if (match) {
-        const uploadId = match[1];
-        
-        // Store manifest in GitHub
-        const manifestJson = JSON.stringify(data);
-        const result = await storeAttachment(`${uploadId}-manifest`, 'media', Buffer.from(manifestJson), {});
-        if (!result) {
-          throw new Error('Failed to store media manifest in GitHub');
-        }
+      if (!match) {
+        console.error('setJSON: key does not match manifest pattern', { key });
+        throw new Error(`Invalid manifest key format: ${key}`);
       }
+      
+      const uploadId = match[1];
+      console.log('setJSON: storing manifest', { uploadId, size: JSON.stringify(data).length });
+      
+      // Store manifest in GitHub
+      const manifestJson = JSON.stringify(data);
+      const result = await storeAttachment(`${uploadId}-manifest`, 'media', Buffer.from(manifestJson), {});
+      
+      if (!result) {
+        console.error('setJSON: storeAttachment returned null', { uploadId });
+        throw new Error('Failed to store media manifest in GitHub');
+      }
+      console.log('setJSON: manifest stored successfully', { uploadId, path: result.path });
     },
 
     async delete(key) {
