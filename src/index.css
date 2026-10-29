@@ -249,9 +249,17 @@
 
   .journal-feed-masonry { columns: 3; column-gap: clamp(2rem, 4vw, 4rem); }
   .journal-feed-timeline { max-width: 680px; margin-inline: auto; }
-  .journal-note { position: relative; min-width: 0; margin-bottom: 3.5rem; break-inside: avoid; animation: fade-up 500ms ease both; border-bottom: 1px solid var(--color-line); padding-bottom: 1.5rem; }
+  .journal-note { 
+    position: relative; 
+    min-width: 0; 
+    margin-bottom: 3.5rem; 
+    break-inside: avoid; 
+    animation: fade-up 500ms ease both; 
+    border: 1px solid color-mix(in srgb, var(--color-line) 50%, transparent);
+    border-radius: 2px;
+    padding: 1.5rem;
+  }
   .journal-note-written {
-    padding: 1.8rem;
     border: 1px solid var(--color-line);
     border-top: 2px solid var(--color-ink);
     border-radius: 1px 5px 2px 1px;

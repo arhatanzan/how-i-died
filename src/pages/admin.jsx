@@ -117,7 +117,9 @@ export function AdminPanel() {
         setAuthenticated(false);
         setApiError('Session expired. Please login again.');
       } else {
-        setApiError('Failed to load notes');
+        const errorData = await notesRes.json().catch(() => ({}));
+        setApiError(errorData.error || `Failed to load notes (${notesRes.status})`);
+        console.error('Failed to load notes:', notesRes.status, errorData);
       }
 
       if (statsRes.ok) {
