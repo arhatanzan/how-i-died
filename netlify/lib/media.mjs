@@ -1,4 +1,4 @@
-import { mediaStore } from './store.mjs';
+import { mediaStore } from './store-file-db.mjs';
 import { MEDIA_PREFIX } from '../../shared/media.js';
 
 export const manifestKey = (id) => `${id}/manifest`;
@@ -19,3 +19,4 @@ export async function deleteMedia(id) {
   for (let index = 0; index < manifest.parts; index++) await mediaStore().delete(chunkKey(id, index));
   await mediaStore().delete(manifestKey(id));
 }
+

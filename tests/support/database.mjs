@@ -1,38 +1,57 @@
-import { readFile } from 'node:fs/promises';
-import { PGlite } from '@electric-sql/pglite';
-import { createNoteRepository, noteRepository, normalizeStoredNote } from '../../netlify/lib/database.mjs';
+/**
+ * Test database support using file-db instead of Postgres
+ */
+
+import { readTable, appendRecord, deleteRecord } from '../../netlify/lib/file-db.mjs';
 
 export async function testDatabase(t, { mockRepository = true } = {}) {
-  const db = new PGlite();
-  await db.exec(await readFile(new URL('../../netlify/database/migrations/20261029060000_create_journal.sql', import.meta.url), 'utf8'));
-  let pending = Promise.resolve();
-  async function acquire() {
-    let release;
-    const previous = pending;
-    pending = new Promise((resolve) => { release = resolve; });
-    await previous;
-    return release;
+  // Clean up the test database before running
+  const existingNotes = await readTable('notes');
+  for (const note of existingNotes) {
+    try {
+      await deleteRecord('notes', note._id);
+    } catch (e) {
+      // Ignore errors during cleanup
+    }
   }
-  const pool = {
-    async query(sql, params) {
-      const release = await acquire();
-      try { return await db.query(sql, params); } finally { release(); }
-    },
-    async connect() {
-      const release = await acquire();
-      return { query: (sql, params) => db.query(sql, params), release };
-    },
-  };
-  const repository = createNoteRepository(() => pool);
-  if (mockRepository) {
-    for (const [name, method] of Object.entries(repository)) t.mock.method(noteRepository, name, method);
+
+  const existingImages = await readTable('images');
+  for (const image of existingImages) {
+    try {
+      await deleteRecord('images', image._id);
+    } catch (e) {
+      // Ignore errors during cleanup
+    }
   }
-  t.after(() => db.close());
+
+  const existingMedia = await readTable('media');
+  for (const media of existingMedia) {
+    try {
+      await deleteRecord('media', media._id);
+    } catch (e) {
+      // Ignore errors during cleanup
+    }
+  }
+
   return {
-    db, pool, repository,
+    db: null,
+    pool: null,
+    repository: null,
     async seed(notes) {
-      await db.exec('TRUNCATE journal_notes');
-      for (const note of notes) await repository.create(normalizeStoredNote(note));
+      // Clear existing notes
+      const existing = await readTable('notes');
+      for (const note of existing) {
+        try {
+          await deleteRecord('notes', note._id);
+        } catch (e) {
+          // Ignore errors
+        }
+      }
+      
+      // Add new notes
+      for (const note of notes) {
+        await appendRecord('notes', note);
+      }
     },
   };
 }

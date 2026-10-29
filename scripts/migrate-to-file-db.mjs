@@ -4,7 +4,7 @@
  * Usage: node scripts/migrate-to-file-db.mjs
  */
 
-import { loadNotes } from '../netlify/lib/store.mjs';
+import { loadNotes } from '../netlify/lib/store-file-db.mjs';
 import { appendRecord, readTable } from '../netlify/lib/file-db.mjs';
 
 async function migrateNotesToFileDB() {
@@ -12,7 +12,7 @@ async function migrateNotesToFileDB() {
 
   try {
     // Load all notes from current database
-    console.log('Loading notes from current database...');
+    console.log('Loading notes from file database...');
     const notes = await loadNotes({ publicOnly: false });
     console.log(`Found ${notes.length} notes\n`);
 
@@ -77,3 +77,4 @@ function askYesNo(question) {
 }
 
 migrateNotesToFileDB();
+

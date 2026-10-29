@@ -1,29 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { setEnvironmentContext } from '@netlify/blobs';
-import { BlobsServer } from '@netlify/blobs/server';
 import notesHandler from '../netlify/functions/notes.mjs';
 import imagesHandler from '../netlify/functions/images.mjs';
 import { issueToken } from '../netlify/lib/auth.mjs';
-import { imageStore } from '../netlify/lib/store.mjs';
+import { imageStore } from '../netlify/lib/store-file-db.mjs';
 import { testDatabase } from './support/database.mjs';
 import { MAX_IMAGE_BYTES } from '../shared/attachments.js';
 
-test('note APIs use Postgres and image APIs use an isolated Blobs store', async (t) => {
+test('note and image APIs work with file-based database', async (t) => {
   const { seed } = await testDatabase(t);
-  const directory = await mkdtemp(join(tmpdir(), 'journal-api-test-'));
-  const server = new BlobsServer({ directory, token: 'local-test-token' });
-  const { port } = await server.start();
-  setEnvironmentContext({ siteID: 'local-journal-test', token: 'local-test-token', edgeURL: `http://localhost:${port}`, uncachedEdgeURL: `http://localhost:${port}` });
   const previous = { ADMIN_USERNAME: process.env.ADMIN_USERNAME, ADMIN_PASSWORD: process.env.ADMIN_PASSWORD };
   process.env.ADMIN_USERNAME = 'test-keeper';
   process.env.ADMIN_PASSWORD = 'local-test-only';
   t.after(async () => {
-    await server.stop();
-    await rm(directory, { recursive: true, force: true });
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;

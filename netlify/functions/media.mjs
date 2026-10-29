@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { getSession } from '../lib/auth.mjs';
 import { fail, isTrustedMutation, json, readJson } from '../lib/http.mjs';
-import { loadNotes, mediaStore } from '../lib/store.mjs';
+import { loadNotes, mediaStore } from '../lib/store-file-db.mjs';
 import { chunkKey, deleteMedia, loadMedia, manifestKey, mediaAttachment } from '../lib/media.mjs';
 import { getAttachments } from '../../shared/attachments.js';
 import { CHUNK_BYTES, fileMetadata, isMediaId, MEDIA_PREFIX } from '../../shared/media.js';

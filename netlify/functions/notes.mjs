@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { getSession } from '../lib/auth.mjs';
 import { fail, isTrustedMutation, json, readJson } from '../lib/http.mjs';
-import { IMAGE_PREFIX, imageStore, loadNotes, createNote, updateNote, deleteNote } from '../lib/store.mjs';
+import { IMAGE_PREFIX, imageStore, loadNotes, createNote, updateNote, deleteNote } from '../lib/store-file-db.mjs';
 import { sanitizeNoteInput } from '../lib/schema.mjs';
 import { getAttachments, hasNoteContent } from '../../shared/attachments.js';
 import { mediaId } from '../../shared/media.js';

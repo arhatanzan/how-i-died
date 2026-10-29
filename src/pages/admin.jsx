@@ -16,6 +16,9 @@ export function AdminPanel() {
   const [editingValue, setEditingValue] = useState('');
   const [addFieldName, setAddFieldName] = useState('');
   const [addFieldValue, setAddFieldValue] = useState('');
+  const [selectedRecord, setSelectedRecord] = useState(null);
+  const [exportFormat, setExportFormat] = useState('json');
+  const [showExportModal, setShowExportModal] = useState(false);
 
   // Check if already authenticated
   useEffect(() => {
@@ -224,6 +227,129 @@ export function AdminPanel() {
     }
   };
 
+  const handleExportTable = async () => {
+    if (!selectedTable) return;
+    setLoading(true);
+    setApiError('');
+    try {
+      const response = await fetch(`/api/admin/export/${selectedTable}`);
+      if (response.ok) {
+        const data = await response.json();
+        let content, filename, type;
+        
+        if (exportFormat === 'json') {
+          content = JSON.stringify(data, null, 2);
+          filename = `${selectedTable}-${new Date().toISOString().split('T')[0]}.json`;
+          type = 'application/json';
+        } else if (exportFormat === 'csv') {
+          const records = data.records || [];
+          if (records.length === 0) {
+            setApiError('No records to export');
+            setLoading(false);
+            return;
+          }
+          
+          const headers = ['_id', '_created', '_updated', ...Object.keys(records[0]).filter(k => !k.startsWith('_'))];
+          const csvRows = [
+            headers.join(','),
+            ...records.map(record => 
+              headers.map(header => {
+                const value = record[header] ?? '';
+                const escaped = String(value).replace(/"/g, '""');
+                return escaped.includes(',') || escaped.includes('"') || escaped.includes('\n') ? `"${escaped}"` : escaped;
+              }).join(',')
+            )
+          ];
+          content = csvRows.join('\n');
+          filename = `${selectedTable}-${new Date().toISOString().split('T')[0]}.csv`;
+          type = 'text/csv';
+        } else if (exportFormat === 'jsonl') {
+          const records = data.records || [];
+          content = records.map(r => JSON.stringify(r)).join('\n');
+          filename = `${selectedTable}-${new Date().toISOString().split('T')[0]}.jsonl`;
+          type = 'application/x-ndjson';
+        }
+        
+        const blob = new Blob([content], { type });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        setShowExportModal(false);
+      } else {
+        setApiError('Failed to export table');
+      }
+    } catch (error) {
+      setApiError('Network error: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExportAllTables = async () => {
+    setLoading(true);
+    setApiError('');
+    try {
+      const allData = {};
+      for (const table of tables) {
+        const response = await fetch(`/api/admin/export/${table}`);
+        if (response.ok) {
+          const data = await response.json();
+          allData[table] = data;
+        }
+      }
+      
+      let content, filename, type;
+      
+      if (exportFormat === 'json') {
+        content = JSON.stringify(allData, null, 2);
+        filename = `database-${new Date().toISOString().split('T')[0]}.json`;
+        type = 'application/json';
+      } else if (exportFormat === 'jsonl') {
+        const lines = [];
+        for (const [tableName, tableData] of Object.entries(allData)) {
+          for (const record of (tableData.records || [])) {
+            lines.push(JSON.stringify({ ...record, _table: tableName }));
+          }
+        }
+        content = lines.join('\n');
+        filename = `database-${new Date().toISOString().split('T')[0]}.jsonl`;
+        type = 'application/x-ndjson';
+      }
+      
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      setShowExportModal(false);
+    } catch (error) {
+      setApiError('Network error: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getAllColumns = () => {
+    const columns = new Set(['_id', '_created', '_updated']);
+    records.forEach(record => {
+      Object.keys(record).forEach(key => {
+        if (!key.startsWith('_')) columns.add(key);
+      });
+    });
+    return Array.from(columns);
+  };
+
   const handleLogout = async () => {
     try {
       await fetch('/api/logout', { 
@@ -237,6 +363,7 @@ export function AdminPanel() {
     setRecords([]);
     setTables([]);
     setSelectedTable(null);
+    setSelectedRecord(null);
   };
 
   if (!authenticated) {
@@ -339,154 +466,323 @@ export function AdminPanel() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           {/* Tables Sidebar */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-bold mb-4 text-gray-900">Tables</h2>
+          <div className="lg:col-span-1 bg-white rounded-lg shadow">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-lg font-bold text-gray-900">Tables</h2>
+            </div>
             
-            {tables.length === 0 ? (
-              <p className="text-gray-500 text-sm">No tables found</p>
-            ) : (
-              <div className="space-y-2 mb-4">
-                {tables.map((table) => (
-                  <button
-                    key={table}
-                    onClick={() => loadTableData(table)}
-                    className={`w-full text-left px-4 py-3 rounded-lg transition font-medium ${
-                      selectedTable === table
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-                    }`}
-                  >
-                    {table}
-                  </button>
-                ))}
-              </div>
-            )}
+            <div className="p-0">
+              {tables.length === 0 ? (
+                <p className="text-gray-500 text-sm p-6">No tables found</p>
+              ) : (
+                <div className="space-y-0">
+                  {tables.map((table) => (
+                    <button
+                      key={table}
+                      onClick={() => {
+                        loadTableData(table);
+                        setSelectedRecord(null);
+                      }}
+                      className={`w-full text-left px-4 py-3 border-b transition font-medium ${
+                        selectedTable === table
+                          ? 'bg-blue-50 text-blue-900 border-l-4 border-l-blue-600'
+                          : 'text-gray-700 hover:bg-gray-50 border-b-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span>{table}</span>
+                        {stats[table] && (
+                          <span className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded">
+                            {stats[table].count}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
-            <button
-              onClick={loadTables}
-              disabled={loading}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-lg transition"
-            >
-              {loading ? 'Refreshing...' : 'Refresh Tables'}
-            </button>
+            <div className="p-6 border-t border-gray-200 space-y-2">
+              <button
+                onClick={loadTables}
+                disabled={loading}
+                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded transition text-sm"
+              >
+                {loading ? 'Refreshing...' : 'Refresh'}
+              </button>
+              <button
+                onClick={() => setShowExportModal(true)}
+                disabled={!selectedTable || loading}
+                className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded transition text-sm"
+              >
+                Export
+              </button>
+            </div>
           </div>
 
-          {/* Main Content */}
+          {/* Main Content - Split View */}
           {selectedTable ? (
-            <div className="lg:col-span-3 space-y-6">
-              {/* Add Record Form */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-bold mb-4 text-gray-900">Add Record to {selectedTable}</h3>
-                <div className="flex gap-2 mb-4">
+            <div className="lg:col-span-4 space-y-6">
+              {/* Add Record Section */}
+              <div className="bg-white rounded-lg shadow p-6 border-l-4 border-green-500">
+                <h3 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wide">New Record</h3>
+                <div className="flex gap-3">
                   <input
                     type="text"
-                    placeholder="Field name (e.g., text, mood)"
+                    placeholder="Field name"
                     value={addFieldName}
                     onChange={(e) => setAddFieldName(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
                   />
                   <input
                     type="text"
                     placeholder="Field value"
                     value={addFieldValue}
                     onChange={(e) => setAddFieldValue(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
                   />
                   <button
                     onClick={handleAddRecord}
                     disabled={loading}
-                    className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium py-2 px-6 rounded-lg transition"
+                    className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium py-2 px-6 rounded transition text-sm"
                   >
                     Add
                   </button>
                 </div>
               </div>
 
-              {/* Records Table */}
-              <div className="bg-white rounded-lg shadow overflow-hidden">
-                <div className="p-6 border-b border-gray-200">
-                  <h3 className="text-lg font-bold text-gray-900">
-                    Records ({records.length})
-                  </h3>
+              {/* Records List and Detail Split */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Records List - Left Column */}
+                <div className="bg-white rounded-lg shadow overflow-hidden flex flex-col">
+                  <div className="p-4 border-b border-gray-200 bg-gray-50">
+                    <h3 className="font-semibold text-gray-900 text-sm">
+                      Rows ({records.length})
+                    </h3>
+                  </div>
+                  
+                  {records.length === 0 ? (
+                    <div className="flex-1 flex items-center justify-center p-8 text-center text-gray-500">
+                      <div>
+                        <p className="text-sm">No records yet</p>
+                        <p className="text-xs text-gray-400 mt-1">Add the first record above</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex-1 overflow-y-auto">
+                      {records.map((record) => (
+                        <button
+                          key={record._id}
+                          onClick={() => setSelectedRecord(record)}
+                          className={`w-full text-left px-4 py-3 border-b transition ${
+                            selectedRecord?._id === record._id
+                              ? 'bg-blue-50 border-l-4 border-l-blue-600'
+                              : 'hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="text-sm font-mono text-gray-600 mb-1">
+                            {record._id.slice(0, 12)}...
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {Object.entries(record)
+                              .filter(([k]) => !k.startsWith('_'))
+                              .slice(0, 1)
+                              .map(([k, v]) => (
+                                <span key={k}>{k}: {String(v).slice(0, 40)}</span>
+                              ))}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                
-                {records.length === 0 ? (
-                  <div className="p-12 text-center text-gray-500">
-                    No records in this table
+
+                {/* Record Details - Right Column */}
+                <div className="bg-white rounded-lg shadow overflow-hidden flex flex-col">
+                  <div className="p-4 border-b border-gray-200 bg-gray-50">
+                    <h3 className="font-semibold text-gray-900 text-sm">
+                      {selectedRecord ? 'Record Data' : 'Select a row'}
+                    </h3>
                   </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50 border-b">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">ID</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Data</th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-900">Created</th>
-                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-900">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {records.map((record) => (
-                          <tr key={record._id} className="border-b hover:bg-gray-50 transition">
-                            <td className="px-4 py-3 text-sm font-mono text-gray-600 whitespace-nowrap">
-                              {record._id.slice(0, 8)}...
-                            </td>
-                            <td className="px-4 py-3 text-sm">
-                              <div className="max-w-xs">
-                                {Object.entries(record)
-                                  .filter(([k]) => !k.startsWith('_'))
-                                  .slice(0, 2)
-                                  .map(([k, v]) => (
-                                    <div key={k} className="text-gray-600 text-xs mb-1">
-                                      <span className="font-medium">{k}:</span> {String(v).slice(0, 30)}
-                                    </div>
-                                  ))}
-                                {Object.keys(record).filter(k => !k.startsWith('_')).length > 2 && (
-                                  <div className="text-gray-500 text-xs">+{Object.keys(record).filter(k => !k.startsWith('_')).length - 2} more</div>
-                                )}
+
+                  {selectedRecord ? (
+                    <div className="flex-1 overflow-y-auto">
+                      <div className="p-4 space-y-3">
+                        {/* System Fields */}
+                        <div className="text-xs">
+                          <div className="bg-gray-50 p-3 rounded mb-4">
+                            <div className="font-mono text-gray-600 mb-1">
+                              <span className="font-semibold text-gray-700">ID:</span>
+                            </div>
+                            <div className="text-gray-700 break-all font-mono text-xs">
+                              {selectedRecord._id}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 mb-4">
+                            <div className="bg-gray-50 p-3 rounded">
+                              <div className="font-semibold text-gray-700 mb-1">Created</div>
+                              <div className="text-gray-600 text-xs">
+                                {new Date(selectedRecord._created).toLocaleString()}
                               </div>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
-                              {new Date(record._created).toLocaleDateString()}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-right space-x-2">
-                              <button
-                                onClick={() => setEditingRecord(record)}
-                                className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs inline-block"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleDeleteRecord(record._id)}
-                                className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs inline-block"
-                              >
-                                Delete
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                            </div>
+                            <div className="bg-gray-50 p-3 rounded">
+                              <div className="font-semibold text-gray-700 mb-1">Updated</div>
+                              <div className="text-gray-600 text-xs">
+                                {new Date(selectedRecord._updated).toLocaleString()}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* User Fields */}
+                        <div className="border-t pt-4">
+                          <div className="font-semibold text-gray-700 mb-3 text-xs uppercase tracking-wide">Fields</div>
+                          {Object.entries(selectedRecord)
+                            .filter(([k]) => !k.startsWith('_'))
+                            .map(([key, value]) => (
+                              <div key={key} className="mb-3 pb-3 border-b last:border-b-0">
+                                <div className="flex items-center justify-between mb-1">
+                                  <div className="font-mono text-xs font-semibold text-gray-700">{key}</div>
+                                  <button
+                                    onClick={() => {
+                                      setEditingRecord(selectedRecord);
+                                      setEditingField(key);
+                                      setEditingValue(value);
+                                    }}
+                                    className="text-xs px-2 py-1 bg-blue-100 text-blue-700 hover:bg-blue-200 rounded"
+                                  >
+                                    Edit
+                                  </button>
+                                </div>
+                                <div className="bg-gray-50 p-2 rounded text-xs font-mono text-gray-700 break-words">
+                                  {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+
+                        {/* Delete Button */}
+                        <div className="border-t pt-4 mt-4">
+                          <button
+                            onClick={() => {
+                              if (window.confirm('Delete this record? This cannot be undone.')) {
+                                handleDeleteRecord(selectedRecord._id);
+                              }
+                            }}
+                            className="w-full bg-red-50 hover:bg-red-100 text-red-700 font-medium py-2 px-4 rounded transition text-sm"
+                          >
+                            Delete Record
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center p-8 text-center text-gray-500">
+                      <p className="text-sm">Select a row to view details</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           ) : (
-            <div className="lg:col-span-3 bg-white rounded-lg shadow p-12 text-center text-gray-500">
-              <p className="text-lg">Select a table to view records</p>
+            <div className="lg:col-span-4 bg-white rounded-lg shadow p-12 text-center text-gray-500">
+              <p className="text-lg">Select a table to begin</p>
+              <p className="text-sm text-gray-400 mt-2">Choose a table from the left sidebar</p>
             </div>
           )}
         </div>
       </div>
+
+      {/* Export Modal */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-2xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900">Export Data</h3>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Export Format
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      value="json"
+                      checked={exportFormat === 'json'}
+                      onChange={(e) => setExportFormat(e.target.value)}
+                      className="mr-3"
+                    />
+                    <span className="text-sm text-gray-700">JSON (Pretty-printed)</span>
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      value="jsonl"
+                      checked={exportFormat === 'jsonl'}
+                      onChange={(e) => setExportFormat(e.target.value)}
+                      className="mr-3"
+                    />
+                    <span className="text-sm text-gray-700">JSONL (Line-delimited, for DB import)</span>
+                  </label>
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      value="csv"
+                      checked={exportFormat === 'csv'}
+                      onChange={(e) => setExportFormat(e.target.value)}
+                      className="mr-3"
+                    />
+                    <span className="text-sm text-gray-700">CSV (Spreadsheet format)</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                <p className="text-xs text-blue-800">
+                  <span className="font-semibold">Tip:</span> Export in JSON or JSONL format for easy database migration in the future.
+                </p>
+              </div>
+            </div>
+            
+            <div className="p-6 border-t border-gray-200 space-y-2">
+              <button
+                onClick={handleExportTable}
+                disabled={loading}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded transition"
+              >
+                Export {selectedTable}
+              </button>
+              <button
+                onClick={handleExportAllTables}
+                disabled={loading || tables.length === 0}
+                className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded transition"
+              >
+                Export All Tables
+              </button>
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="w-full bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Edit Modal */}
       {editingRecord && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg shadow-2xl max-w-md w-full">
             <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-bold text-gray-900">Edit Record</h3>
+              <h3 className="text-lg font-bold text-gray-900">Edit Field</h3>
             </div>
             
             <div className="p-6 space-y-4">
@@ -494,8 +790,11 @@ export function AdminPanel() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Field</label>
                 <select
                   value={editingField}
-                  onChange={(e) => setEditingField(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={(e) => {
+                    setEditingField(e.target.value);
+                    setEditingValue(editingRecord[e.target.value] ?? '');
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 >
                   <option value="">Select a field...</option>
                   {Object.keys(editingRecord)
@@ -510,9 +809,9 @@ export function AdminPanel() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Value</label>
                   <textarea
-                    value={editingValue || (editingRecord[editingField] ?? '')}
+                    value={editingValue ?? ''}
                     onChange={(e) => setEditingValue(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-24"
+                    className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 h-32 text-sm font-mono"
                   />
                 </div>
               )}
@@ -522,7 +821,7 @@ export function AdminPanel() {
               <button
                 onClick={handleUpdateField}
                 disabled={loading || !editingField}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-lg transition"
+                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded transition"
               >
                 Save
               </button>
@@ -532,7 +831,7 @@ export function AdminPanel() {
                   setEditingField('');
                   setEditingValue('');
                 }}
-                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded-lg transition"
+                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded transition"
               >
                 Cancel
               </button>

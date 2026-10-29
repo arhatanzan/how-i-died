@@ -4,15 +4,13 @@ import crypto from 'node:crypto';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { setEnvironmentContext } from '@netlify/blobs';
-import { BlobsServer } from '@netlify/blobs/server';
 import mediaHandler from '../netlify/functions/media.mjs';
 import notesHandler from '../netlify/functions/notes.mjs';
 import exportHandler from '../netlify/functions/export.mjs';
 import imagesHandler from '../netlify/functions/images.mjs';
 import authHandler from '../netlify/functions/auth.mjs';
 import { issueToken } from '../netlify/lib/auth.mjs';
-import { imageStore, mediaStore } from '../netlify/lib/store.mjs';
+import { imageStore, mediaStore } from '../netlify/lib/store-file-db.mjs';
 import { chunkKey, loadMedia } from '../netlify/lib/media.mjs';
 import { CHUNK_BYTES, fileMetadata, MAX_FILE_BYTES, MEDIA_PREFIX } from '../shared/media.js';
 import { validateAttachments } from '../shared/attachments.js';
@@ -55,17 +53,13 @@ test('server signature checks reject renamed executables, APK/ZIP packages and f
   assert.doesNotThrow(() => validateFileHeader({ contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }, bytes('PK\u0003\u0004container')));
 });
 
-test('large attachments and portable exports persist through isolated Blobs storage', async (t) => {
+test('large attachments and portable exports persist through file-based storage', async (t) => {
   const { seed } = await testDatabase(t);
   const directory = await mkdtemp(join(tmpdir(), 'journal-media-test-'));
-  const server = new BlobsServer({ directory, token: 'local-media-token' });
-  const { port } = await server.start();
-  setEnvironmentContext({ siteID: 'local-media-test', token: 'local-media-token', edgeURL: `http://localhost:${port}`, uncachedEdgeURL: `http://localhost:${port}` });
   const previous = { ADMIN_USERNAME: process.env.ADMIN_USERNAME, ADMIN_PASSWORD: process.env.ADMIN_PASSWORD };
   process.env.ADMIN_USERNAME = 'test-keeper';
   process.env.ADMIN_PASSWORD = 'local-test-only';
   t.after(async () => {
-    await server.stop();
     await rm(directory, { recursive: true, force: true });
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key];
