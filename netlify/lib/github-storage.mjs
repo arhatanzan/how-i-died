@@ -95,7 +95,15 @@ export async function storeNoteMetadata(note) {
  */
 export async function storeAttachment(attachmentId, type, data, metadata = {}) {
   const client = getOctokit();
-  if (!client) return null;
+  if (!client) {
+    console.error('GitHub client not initialized: GITHUB_TOKEN missing');
+    return null;
+  }
+
+  if (!GITHUB_REPO) {
+    console.error('GitHub storage not available: GITHUB_REPO environment variable not set');
+    return null;
+  }
 
   try {
     const path = `${DATA_FOLDER}/attachments/${type}/${attachmentId}`;
@@ -136,7 +144,14 @@ export async function storeAttachment(attachmentId, type, data, metadata = {}) {
       githubCommitUrl: result.data.commit.html_url,
     };
   } catch (error) {
-    console.error('Failed to store attachment in GitHub:', error);
+    console.error('Failed to store attachment in GitHub:', { 
+      attachmentId, 
+      type, 
+      error: error.message,
+      status: error.status,
+      owner: GITHUB_OWNER,
+      repo: GITHUB_REPO
+    });
     return null;
   }
 }
