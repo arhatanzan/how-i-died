@@ -1,9 +1,12 @@
 /**
- * Store adapter that persists all files using GitHub API
+ * Store adapter that persists all files
  * - Notes: Stored in .data/ directory (persists across deployments)
- * - Media & Images: Stored in GitHub repository via storeAttachment()
+ * - Media: Stored in .data/media/ directory (works on Netlify production)
+ * - Images: Stored via git-storage or GitHub (for large files)
  */
 
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { readTable, appendRecord, updateRecord, deleteRecord, getRecord } from './blob-db.mjs';
 import { gitImageStorage, gitMediaStorage } from './git-storage.mjs';
 import { storeAttachment } from './github-storage.mjs';
@@ -115,32 +118,42 @@ export function imageStore() {
   };
 }
 
-// Media store - uses GitHub API to store media, git storage for local dev
+// Media store - stores uploads in .data/media/ directory (works on Netlify)
 export function mediaStore() {
   return {
     async get(key, options = {}) {
-      const result = await gitMediaStorage.loadManifest(key);
-      if (!result) return null;
+      // Load from .data/media/{uploadId}/manifest.json
+      const match = key.match(/^([^/]+)(?:\/manifest)?$/);
+      if (!match) return null;
       
-      if (options.type === 'arrayBuffer') {
-        if (typeof result === 'string') {
-          return Buffer.from(result, 'base64');
+      const uploadId = match[1];
+      const mediaDir = path.join(process.cwd(), '.data', 'media');
+      const manifestPath = path.join(mediaDir, uploadId, 'manifest.json');
+      
+      try {
+        const content = await fs.readFile(manifestPath, 'utf-8');
+        const result = JSON.parse(content);
+        
+        if (options.type === 'arrayBuffer') {
+          if (typeof result === 'string') {
+            return Buffer.from(result, 'base64');
+          }
+          return result;
+        }
+        if (options.type === 'json') {
+          return result;
         }
         return result;
+      } catch (error) {
+        if (error.code === 'ENOENT') return null;
+        throw error;
       }
-      if (options.type === 'json') {
-        return result;
-      }
-      return result;
     },
 
     async getMetadata(key) {
-      const result = await gitMediaStorage.loadManifest(key);
+      const result = await this.get(key, { type: 'json' });
       if (!result) return null;
-      return {
-        metadata: result,
-        data: result,
-      };
+      return { metadata: result, data: result };
     },
 
     async set(key, data, options = {}) {
@@ -163,12 +176,17 @@ export function mediaStore() {
         const uploadId = match[1];
         const partIndex = parseInt(match[2], 10);
         
-        // Store in GitHub
-        const attachmentId = `${uploadId}-part-${partIndex}`;
-        await storeAttachment(attachmentId, 'media', buffer, options.metadata || {});
+        const mediaDir = path.join(process.cwd(), '.data', 'media');
+        const uploadDir = path.join(mediaDir, uploadId);
         
-        // Also store locally for dev
-        await gitMediaStorage.savePart(uploadId, partIndex, buffer);
+        try {
+          await fs.mkdir(uploadDir, { recursive: true });
+          const partPath = path.join(uploadDir, `part-${partIndex}.bin`);
+          await fs.writeFile(partPath, buffer);
+        } catch (error) {
+          console.error('Failed to write media part:', error);
+          throw error;
+        }
       }
     },
 
@@ -177,13 +195,17 @@ export function mediaStore() {
       const match = key.match(/^([^/]+)\/manifest$/);
       if (match) {
         const uploadId = match[1];
+        const mediaDir = path.join(process.cwd(), '.data', 'media');
+        const uploadDir = path.join(mediaDir, uploadId);
         
-        // Store manifest in GitHub
-        const manifestJson = JSON.stringify(data);
-        await storeAttachment(`${uploadId}-manifest`, 'media', Buffer.from(manifestJson), {});
-        
-        // Also store locally for dev
-        await gitMediaStorage.saveManifest(uploadId, data);
+        try {
+          await fs.mkdir(uploadDir, { recursive: true });
+          const manifestPath = path.join(uploadDir, 'manifest.json');
+          await fs.writeFile(manifestPath, JSON.stringify(data, null, 2));
+        } catch (error) {
+          console.error('Failed to write media manifest:', error);
+          throw error;
+        }
       }
     },
 
@@ -191,14 +213,32 @@ export function mediaStore() {
       const match = key.match(/^([^/]+)(?:\/parts\/\d+|\/manifest)?$/);
       if (match) {
         const uploadId = match[1];
-        // Note: GitHub storage doesn't have a delete mechanism in current implementation
-        // Files are stored but not removed - this matches the immutable nature of git
-        await gitMediaStorage.deleteUpload(uploadId);
+        const mediaDir = path.join(process.cwd(), '.data', 'media');
+        const uploadDir = path.join(mediaDir, uploadId);
+        
+        try {
+          const files = await fs.readdir(uploadDir);
+          for (const file of files) {
+            await fs.unlink(path.join(uploadDir, file));
+          }
+          await fs.rmdir(uploadDir);
+        } catch (error) {
+          if (error.code !== 'ENOENT') {
+            console.error('Failed to delete media:', error);
+          }
+        }
       }
     },
 
     async list() {
-      return await gitMediaStorage.listUploads();
+      const mediaDir = path.join(process.cwd(), '.data', 'media');
+      try {
+        const dirs = await fs.readdir(mediaDir);
+        return dirs.map(d => ({ id: d }));
+      } catch (error) {
+        if (error.code === 'ENOENT') return [];
+        throw error;
+      }
     },
   };
 }
