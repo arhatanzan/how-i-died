@@ -7,7 +7,7 @@ import { getAttachments } from '../../shared/attachments.js';
 import { CHUNK_BYTES, fileMetadata, isMediaId, MEDIA_PREFIX } from '../../shared/media.js';
 import { readFilePart, validateFileHeader } from '../lib/file-validation.mjs';
 
-export default async (req, context) => {
+async function handleMedia(req, context) {
   const { id, part, action } = context.params || {};
   const authed = Boolean(getSession(req));
   if (id && !isMediaId(id)) return fail(404, 'Not found');
@@ -80,6 +80,15 @@ export default async (req, context) => {
     return json(mediaAttachment(manifest));
   }
   return fail(405, 'Method not allowed');
+}
+
+export default async (req, context) => {
+  try {
+    return await handleMedia(req, context);
+  } catch (error) {
+    console.error('Media upload request failed.', { method: req.method, url: req.url, error });
+    return fail(503, 'The media storage is unavailable. Please try again; your upload has not been cleared.');
+  }
 };
 
 export const config = { path: ['/api/media', '/api/media/:id', '/api/media/:id/parts/:part', '/api/media/:id/:action'] };
