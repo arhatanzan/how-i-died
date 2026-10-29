@@ -255,9 +255,13 @@
     margin-bottom: 3.5rem; 
     break-inside: avoid; 
     animation: fade-up 500ms ease both; 
-    border: 1px solid color-mix(in srgb, var(--color-line) 50%, transparent);
+    border: 1px solid;
+    border-color: rgba(0, 0, 0, 0.15);
     border-radius: 2px;
     padding: 1.5rem;
+  }
+  html[data-theme='light'] .journal-note {
+    border-color: rgba(0, 0, 0, 0.1);
   }
   .journal-note-written {
     border: 1px solid var(--color-line);
