@@ -11,9 +11,10 @@ export async function exportJournal({ baseUrl, directory, username, password, fe
     throw new Error('Use an HTTPS site origin (or HTTP localhost for development).');
   }
   if (!username || !password) throw new Error('Set ADMIN_USERNAME and ADMIN_PASSWORD for the keeper account.');
+  const APP_REQUEST_ID = 'journal-app';
   const login = await fetcher(new URL('/api/login', origin), {
     method: 'POST', redirect: 'error',
-    headers: { 'content-type': 'application/json', 'x-requested-with': 'how-i-died' },
+    headers: { 'content-type': 'application/json', 'x-requested-with': APP_REQUEST_ID },
     body: JSON.stringify({ username, password }),
   });
   if (!login.ok) throw new Error(`Keeper sign-in failed (${login.status}).`);

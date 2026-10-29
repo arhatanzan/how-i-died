@@ -20,5 +20,6 @@ export async function readJson(req) {
  * content type plus a custom header blocks simple cross-site form posts.
  */
 export function isTrustedMutation(req) {
-  return req.headers.get('x-requested-with') === 'how-i-died';
+  const APP_REQUEST_ID = 'journal-app';
+  return req.headers.get('x-requested-with') === APP_REQUEST_ID;
 }

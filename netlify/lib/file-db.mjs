@@ -2,6 +2,23 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
+/**
+ * WARNING: File-based database storage (.data directory)
+ * 
+ * This implementation uses local file storage and should NOT be used in production.
+ * The .data directory is listed in .gitignore and will not persist on Netlify.
+ * 
+ * For production deployments:
+ * - Use Netlify Database (Postgres) via @netlify/database SDK
+ * - Set NETLIFY_DB_URL environment variable
+ * - Update netlify/functions to use database.mjs instead of file-db.mjs
+ * - Migrate existing data from .data files to Postgres
+ * 
+ * This file-based store is suitable only for:
+ * - Local development with `netlify dev`
+ * - Testing environments
+ */
+
 const DATA_DIR = path.join(process.cwd(), '.data');
 const TABLES_DIR = path.join(DATA_DIR, 'tables');
 

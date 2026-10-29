@@ -91,3 +91,38 @@ npm run build
 ```
 
 Tests execute the actual SQL schema and repository against isolated PGlite Postgres instances (no cloud credentials). They cover note CRUD and transaction rollback, legacy imports and reruns, privacy, attachments, archive selection, multi-chunk uploads, cleanup, explicit database errors, and portable exports with file integrity checks. Tracker, finance, and public-statistics features and endpoints have been removed; previously stored tracker data is not deleted.
+
+## Database Export & Backup
+
+The journal supports exporting data to multiple database formats for future migration or backup:
+
+### Supported Export Formats
+- **JSON** - Default universal format
+- **CSV** - Excel/spreadsheet compatible
+- **PostgreSQL** - Open-source SQL database
+- **MySQL** - MySQL/MariaDB database
+- **MongoDB** - NoSQL database
+- **AWS DynamoDB** - Serverless NoSQL
+- **Google Firestore** - Cloud NoSQL database
+- **AWS RDS** - Amazon managed databases
+
+### Export Data
+Access the admin panel at `/admin` and use the "Export Database" button to download notes in any format. Each export includes schema and import instructions.
+
+### Manual Export (API)
+```bash
+# Export as PostgreSQL
+curl http://localhost:8888/api/admin/export-db/notes/postgres \
+  -H "x-requested-with: how-i-died" \
+  > journal-backup.sql
+
+# Export as MongoDB
+curl http://localhost:8888/api/admin/export-db/notes/mongodb \
+  -H "x-requested-with: how-i-died" \
+  > journal-backup.json
+```
+
+### GitHub Permanent Storage
+All notes can be automatically stored in your GitHub repository for permanent backup and version control. Set `GITHUB_TOKEN`, `GITHUB_OWNER`, and `GITHUB_REPO` environment variables to enable.
+
+See [SCHEMA.md](./SCHEMA.md) for complete database schema and [REFACTORING.md](./REFACTORING.md) for migration guide.

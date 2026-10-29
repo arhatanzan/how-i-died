@@ -6,6 +6,7 @@ import { issueToken } from '../netlify/lib/auth.mjs';
 import { imageStore } from '../netlify/lib/store-file-db.mjs';
 import { testDatabase } from './support/database.mjs';
 import { MAX_IMAGE_BYTES } from '../shared/attachments.js';
+import { APP_REQUEST_ID } from './constants.mjs';
 
 test('note and image APIs work with file-based database', async (t) => {
   const { seed } = await testDatabase(t);
@@ -23,7 +24,7 @@ test('note and image APIs work with file-based database', async (t) => {
     method,
     headers: {
       ...(authenticated ? { cookie } : {}),
-      'x-requested-with': 'how-i-died',
+      'x-requested-with': APP_REQUEST_ID,
       'content-type': body instanceof Uint8Array ? 'image/png' : 'application/json',
     },
     body: body === undefined ? undefined : body instanceof Uint8Array ? body : JSON.stringify(body),

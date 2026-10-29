@@ -1,4 +1,6 @@
-const HEADERS = { 'x-requested-with': 'how-i-died' };
+import { APP_REQUEST_ID } from '../config.js';
+
+const HEADERS = { 'x-requested-with': APP_REQUEST_ID };
 
 async function request(path, { method = 'GET', body, headers = {}, raw = false, signal } = {}) {
   let res;

@@ -10,6 +10,15 @@ import {
   exportTable,
   getStats 
 } from '../lib/file-db.mjs';
+import {
+  exportToMongoDB,
+  exportToPostgres,
+  exportToMySQL,
+  exportToAWSRDS,
+  exportToDynamoDB,
+  exportToFirestore,
+  exportToCSV,
+} from '../lib/db-export.mjs';
 
 async function handleAdmin(req, context) {
   const session = getSession(req);
@@ -51,6 +60,45 @@ async function handleAdmin(req, context) {
     if (table && action === 'export') {
       const data = await exportTable(table);
       return json(data);
+    }
+
+    if (table && id && action === 'export-db') {
+      // Export to specific database format
+      // id = 'mongodb', 'postgres', 'mysql', 'dynamodb', 'firestore', 'csv', etc.
+      try {
+        let result;
+        switch (id) {
+          case 'mongodb':
+            result = await exportToMongoDB(table);
+            break;
+          case 'postgres':
+            result = await exportToPostgres(table);
+            break;
+          case 'mysql':
+            result = await exportToMySQL(table);
+            break;
+          case 'dynamodb':
+            result = await exportToDynamoDB(table);
+            break;
+          case 'firestore':
+            result = await exportToFirestore(table);
+            break;
+          case 'csv':
+            result = await exportToCSV(table);
+            break;
+          case 'rds-postgres':
+            result = await exportToAWSRDS(table, 'postgres');
+            break;
+          case 'rds-mysql':
+            result = await exportToAWSRDS(table, 'mysql');
+            break;
+          default:
+            return fail(400, `Unknown database format: ${id}`);
+        }
+        return json(result);
+      } catch (error) {
+        return fail(500, `Export failed: ${error.message}`);
+      }
     }
 
     return fail(404, 'Endpoint not found');

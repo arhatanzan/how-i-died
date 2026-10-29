@@ -18,6 +18,7 @@ import { exportJournal } from '../scripts/export-journal.mjs';
 import { selectNotes } from '../src/lib/journal.js';
 import { validateFileHeader } from '../netlify/lib/file-validation.mjs';
 import { testDatabase } from './support/database.mjs';
+import { APP_REQUEST_ID } from './constants.mjs';
 
 test('supported uploads use a strict format allowlist and exact size limits', () => {
   for (const name of ['photo.jpg', 'photo.gif', 'clip.mp4', 'clip.mov', 'clip.webm', 'song.mp3', 'memo.m4a', 'memo.ogg', 'scan.pdf', 'report.doc', 'report.docx', 'data.xlsx', 'slides.pptx', 'art.svg', 'essay.txt', 'data.csv', 'sheet.ods', 'slides.odp']) {
@@ -71,7 +72,7 @@ test('large attachments and portable exports persist through file-based storage'
     method,
     headers: {
       ...(authenticated ? { cookie } : {}),
-      ...(trusted ? { 'x-requested-with': 'how-i-died' } : {}),
+      ...(trusted ? { 'x-requested-with': APP_REQUEST_ID } : {}),
       'content-type': body instanceof Uint8Array ? 'application/octet-stream' : 'application/json',
     },
     body: body === undefined ? undefined : body instanceof Uint8Array ? body : JSON.stringify(body),

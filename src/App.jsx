@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import Header from './components/Header';
+import MobileNav from './components/MobileNav';
 import Journal from './pages/Journal';
 import Home from './pages/Home';
 import { AdminPanel } from './pages/admin';
@@ -31,6 +32,7 @@ export default function App() {
   return (
     <div className="flex min-h-dvh flex-col">
       <Header isJournal={isJournal} />
+      <MobileNav isJournal={isJournal} />
       <main className="flex-1">
         {isJournal ? (
           <Journal

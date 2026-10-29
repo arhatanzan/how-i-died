@@ -44,76 +44,84 @@ export default function Toolbar({ filters, setFilters, total, shown, years, onDa
           ))}
         </div>
       </div>
-      <div className="archive-browse">
-        <div className="archive-dates" aria-label="Filter entries by date">
-          <span className="archive-prompt">Wander through</span>
-          <label>
-            <span className="sr-only">Year</span>
-            <select
-              className="archive-select"
-              value={filters.year}
-              onChange={(e) => onDateChange({
-                year: e.target.value,
-                ...(!e.target.value ? { month: '' } : {}),
-                day: null,
-              })}
-              aria-label="Filter by year"
-            >
-              <option value="">Any year</option>
-              {years.map((year) => <option key={year} value={year}>{year}</option>)}
-            </select>
-          </label>
-          <label>
-            <span className="sr-only">Month</span>
-            <select
-              className="archive-select"
-              value={filters.month}
-              disabled={!filters.year}
-              onChange={(e) => onDateChange({ month: e.target.value, day: null })}
-              aria-label="Filter by month"
-            >
-              <option value="">Any month</option>
-              {MONTHS.map((month, index) => (
-                <option key={month} value={String(index + 1).padStart(2, '0')}>{month}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span className="sr-only">Day</span>
-            <select
-              className="archive-select"
-              value={selectedDay}
-              disabled={!filters.year || !days}
-              onChange={(e) => {
-                const day = e.target.value
-                  ? `${filters.year}-${filters.month}-${e.target.value.padStart(2, '0')}`
-                  : null;
-                onDateChange({ day });
-              }}
-              aria-label="Filter by day"
-            >
-              <option value="">Any day</option>
-              {Array.from({ length: days }, (_, index) => index + 1).map((day) => (
-                <option key={day} value={day}>{day}</option>
-              ))}
-            </select>
-          </label>
+      <div className="archive-filters-container">
+        <div className="archive-filters-left">
+          <div className="archive-browse">
+            <div className="archive-dates" aria-label="Filter entries by date">
+              <span className="archive-prompt">Wander through</span>
+              <label>
+                <span className="sr-only">Year</span>
+                <select
+                  className="archive-select"
+                  value={filters.year}
+                  onChange={(e) => onDateChange({
+                    year: e.target.value,
+                    ...(!e.target.value ? { month: '' } : {}),
+                    day: null,
+                  })}
+                  aria-label="Filter by year"
+                >
+                  <option value="">Any year</option>
+                  {years.map((year) => <option key={year} value={year}>{year}</option>)}
+                </select>
+              </label>
+              <label>
+                <span className="sr-only">Month</span>
+                <select
+                  className="archive-select"
+                  value={filters.month}
+                  disabled={!filters.year}
+                  onChange={(e) => onDateChange({ month: e.target.value, day: null })}
+                  aria-label="Filter by month"
+                >
+                  <option value="">Any month</option>
+                  {MONTHS.map((month, index) => (
+                    <option key={month} value={String(index + 1).padStart(2, '0')}>{month}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span className="sr-only">Day</span>
+                <select
+                  className="archive-select"
+                  value={selectedDay}
+                  disabled={!filters.year || !days}
+                  onChange={(e) => {
+                    const day = e.target.value
+                      ? `${filters.year}-${filters.month}-${e.target.value.padStart(2, '0')}`
+                      : null;
+                    onDateChange({ day });
+                  }}
+                  aria-label="Filter by day"
+                >
+                  <option value="">Any day</option>
+                  {Array.from({ length: days }, (_, index) => index + 1).map((day) => (
+                    <option key={day} value={day}>{day}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
         </div>
-        <label className="archive-order">
-          <span className="sr-only">Sort by</span>
-          <select value={filters.sort} onChange={(e) => set({ sort: e.target.value })} className="archive-select" aria-label="Sort">
-            {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-          </select>
-        </label>
-      </div>
-      <div className="archive-search">
-        <label>
-          <span className="sr-only">Search notes</span>
-          <input type="search" value={filters.search} onChange={(event) => set({ search: event.target.value })} placeholder="Find a word, a place, a memory…" />
-        </label>
-        {(filters.search || filters.year || filters.month || filters.day) && (
-          <button type="button" className="text-button" onClick={() => set({ search: '', year: '', month: '', day: null })}>Clear filters ↺</button>
-        )}
+        <div className="archive-filters-right">
+          <div className="archive-browse">
+            <label className="archive-order">
+              <span className="sr-only">Sort by</span>
+              <select value={filters.sort} onChange={(e) => set({ sort: e.target.value })} className="archive-select" aria-label="Sort">
+                {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="archive-search">
+            <label>
+              <span className="sr-only">Search notes</span>
+              <input type="search" value={filters.search} onChange={(event) => set({ search: event.target.value })} placeholder="Find a word, a place, a memory…" />
+            </label>
+            {(filters.search || filters.year || filters.month || filters.day) && (
+              <button type="button" className="text-button" onClick={() => set({ search: '', year: '', month: '', day: null })}>Clear filters ↺</button>
+            )}
+          </div>
+        </div>
       </div>
 
       {filters.day && (
