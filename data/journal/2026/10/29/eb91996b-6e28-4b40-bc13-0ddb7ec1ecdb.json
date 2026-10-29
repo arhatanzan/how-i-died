@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "eb91996b-6e28-4b40-bc13-0ddb7ec1ecdb",
+  "text": "",
+  "mood": "meh",
+  "isPublic": false,
+  "featured": false,
+  "imageUrl": null,
+  "attachments": [
+    {
+      "type": "audio",
+      "url": "/api/media/cab52a44-c7e2-4511-8fc3-2db280646c49",
+      "title": ""
+    }
+  ],
+  "createdAt": "2026-10-29T18:55:32.496Z",
+  "updatedAt": "2026-10-29T18:55:32.496Z",
+  "_storedAt": "2026-10-29T18:55:32.497Z",
+  "_githubPath": "data/journal/2026/10/29/eb91996b-6e28-4b40-bc13-0ddb7ec1ecdb.json"
+}
