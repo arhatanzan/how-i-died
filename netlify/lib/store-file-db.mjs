@@ -1,9 +1,9 @@
 /**
- * File-based store adapter using file-db.mjs
+ * Store adapter that uses Netlify Blobs for production and file-based storage for development
  * Provides the same interface as the Netlify blobs store
  */
 
-import { readTable, appendRecord, updateRecord, deleteRecord, getRecord } from './file-db.mjs';
+import { readTable, appendRecord, updateRecord, deleteRecord, getRecord } from './blob-db.mjs';
 
 export const IMAGE_PREFIX = '/api/images/';
 
