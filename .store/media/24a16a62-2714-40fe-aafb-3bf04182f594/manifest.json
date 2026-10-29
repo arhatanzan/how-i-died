@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "24a16a62-2714-40fe-aafb-3bf04182f594",
+  "type": "video",
+  "name": "large.mp4",
+  "size": 262144000,
+  "contentType": "video/mp4",
+  "parts": 63,
+  "chunkBytes": 4194304,
+  "complete": false,
+  "createdAt": "2026-10-29T16:41:38.327Z"
+}
