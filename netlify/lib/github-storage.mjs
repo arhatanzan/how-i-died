@@ -16,7 +16,11 @@ let octokit = null;
 function getOctokit() {
   if (!octokit) {
     if (!GITHUB_TOKEN) {
-      console.warn('GITHUB_TOKEN not set. GitHub storage will be unavailable.');
+      console.error('GITHUB_TOKEN environment variable not set. GitHub storage will be unavailable.');
+      return null;
+    }
+    if (!GITHUB_REPO) {
+      console.error('GITHUB_REPO environment variable not set. GitHub storage will be unavailable.');
       return null;
     }
     octokit = new Octokit({ auth: GITHUB_TOKEN });
@@ -30,9 +34,16 @@ function getOctokit() {
  */
 export async function storeNoteMetadata(note) {
   const client = getOctokit();
-  if (!client) return null;
+  if (!client) {
+    console.error('Octokit client not initialized - missing GitHub credentials');
+    return null;
+  }
 
   try {
+    if (!GITHUB_REPO) {
+      throw new Error('GITHUB_REPO environment variable not set');
+    }
+
     const date = new Date(note.createdAt);
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -84,7 +95,14 @@ export async function storeNoteMetadata(note) {
       githubCommitUrl: result.data.commit.html_url,
     };
   } catch (error) {
-    console.error('Failed to store note metadata in GitHub:', error);
+    console.error('Failed to store note metadata in GitHub:', {
+      noteId: note.id,
+      owner: GITHUB_OWNER,
+      repo: GITHUB_REPO,
+      errorMessage: error.message,
+      errorStatus: error.status,
+      errorCode: error.code,
+    });
     return null;
   }
 }
