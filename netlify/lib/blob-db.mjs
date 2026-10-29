@@ -144,8 +144,3 @@ export async function deleteRecord(tableName, recordId) {
 export async function getRecord(tableName, recordId) {
   return getRecordFromFile(tableName, recordId);
 }
-
-export async function getRecord(tableName, recordId) {
-  await initializeBlobs();
-  return isProduction && blobsStore ? getRecordFromBlobs(tableName, recordId) : getRecordFromFile(tableName, recordId);
-}
