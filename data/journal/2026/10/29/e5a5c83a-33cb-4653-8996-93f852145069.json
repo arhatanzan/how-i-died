@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "e5a5c83a-33cb-4653-8996-93f852145069",
+  "text": "COPILOT-QA-20261029 media note",
+  "mood": "meh",
+  "isPublic": false,
+  "featured": false,
+  "imageUrl": "/api/media/393b6d17-f9a4-4c9b-9387-883b82d62da0",
+  "attachments": [
+    {
+      "type": "image",
+      "url": "/api/media/393b6d17-f9a4-4c9b-9387-883b82d62da0",
+      "alt": "QA photo caption"
+    },
+    {
+      "type": "file",
+      "url": "/api/media/1343c830-1761-43a4-8b43-b2e2c2e405fc",
+      "title": "QA document"
+    },
+    {
+      "type": "audio",
+      "url": "/api/media/e6e32455-d6cc-4246-bed2-a8d6952a9b12",
+      "title": "QA audio"
+    }
+  ],
+  "createdAt": "2026-10-29T19:46:12.303Z",
+  "updatedAt": "2026-10-29T19:46:12.303Z",
+  "_storedAt": "2026-10-29T19:46:12.303Z",
+  "_githubPath": "data/journal/2026/10/29/e5a5c83a-33cb-4653-8996-93f852145069.json"
+}
