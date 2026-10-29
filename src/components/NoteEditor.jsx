@@ -1,12 +1,15 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { getAttachments, MAX_ATTACHMENTS, normalizeWebUrl, validateAttachments } from '../../shared/attachments';
-import { api } from '../lib/api';
 import { toLocalInput } from '../lib/dates';
-import { prepareImage, validateImageFile } from '../lib/image';
+import { FILE_ACCEPT, fileMetadata, formatBytes } from '../../shared/media';
+import { uploadFile } from '../lib/media';
+import MediaCapture from './MediaCapture';
+import { useMediaUrl } from '../lib/useMediaUrl';
 import MoodPicker from './MoodPicker';
 
-function DraftPhoto({ item }) {
+function DraftAttachment({ item }) {
   const [preview, setPreview] = useState(item.url);
+  const saved = useMediaUrl(item, !item.file && item.type === 'image');
   useEffect(() => {
     if (!item.file) {
       setPreview(item.url);
@@ -16,7 +19,14 @@ function DraftPhoto({ item }) {
     setPreview(url);
     return () => URL.revokeObjectURL(url);
   }, [item.file, item.url]);
-  return <img src={preview} alt={item.alt || 'Photo preview'} />;
+  if (item.type === 'link') return <a href={item.url} target="_blank" rel="noopener noreferrer">{new URL(item.url).hostname} ↗</a>;
+  if (!item.file && item.type !== 'image') return <p className="draft-file-name">{item.name} · Ready to save</p>;
+  if (!item.file && saved.error) return <p className="editor-error" role="alert">{saved.error}<button type="button" className="text-button" onClick={saved.retry}>Try again</button></p>;
+  if (!item.file) return saved.url ? <img src={saved.url} alt={item.alt || 'Photo preview'} /> : <p role="status">Loading photo…</p>;
+  if (item.type === 'image') return <img src={preview} alt={item.alt || 'Photo preview'} />;
+  if (item.type === 'audio') return <audio controls src={preview} aria-label="Audio attachment preview" />;
+  if (item.type === 'video') return <video controls playsInline src={preview} aria-label="Video attachment preview" />;
+  return <p className="draft-file-name">{item.name} · {formatBytes(item.size)}</p>;
 }
 
 function initialAttachments(note) {
@@ -40,6 +50,7 @@ export default function NoteEditor({ note, onSave, onCancel }) {
   const [progress, setProgress] = useState('');
   const [error, setError] = useState('');
   const [dragging, setDragging] = useState(false);
+  const [capture, setCapture] = useState(null);
   const fileInput = useRef(null);
   const textarea = useRef(null);
 
@@ -56,8 +67,8 @@ export default function NoteEditor({ note, onSave, onCancel }) {
     try {
       const selected = Array.from(files);
       if (selected.length + attachments.length > MAX_ATTACHMENTS) throw new Error(`Keep up to ${MAX_ATTACHMENTS} attachments in one note.`);
-      selected.forEach(validateImageFile);
-      setAttachments((items) => [...items, ...selected.map((file) => ({ id: crypto.randomUUID(), type: 'image', file, alt: '' }))]);
+      const additions = selected.map((file) => ({ id: crypto.randomUUID(), ...fileMetadata(file), file, alt: '', title: '' }));
+      setAttachments((items) => [...items, ...additions]);
     } catch (err) {
       setError(err.message);
     }
@@ -82,7 +93,7 @@ export default function NoteEditor({ note, onSave, onCancel }) {
 
   async function submit(event) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || capture) return;
     setError('');
     if (linkUrl.trim()) {
       setShowLink(true);
@@ -90,26 +101,25 @@ export default function NoteEditor({ note, onSave, onCancel }) {
       return;
     }
     if (!text.trim() && !attachments.length) {
-      setError('Add a few words, a photo, or a link.');
+      setError('Add some text, an attachment, or a link.');
       return;
     }
     setBusy(true);
     try {
       const savedAttachments = [];
-      let photoNumber = 0;
+      let fileNumber = 0;
       const uploads = attachments.filter((item) => item.file).length;
       for (const item of attachments) {
         let url = item.url;
+        let uploaded = {};
         if (item.file) {
-          setProgress(`Preparing photo ${++photoNumber} of ${uploads}…`);
-          const blob = await prepareImage(item.file);
-          setProgress(`Uploading photo ${photoNumber} of ${uploads}…`);
-          url = (await api.uploadImage(blob)).url;
-          if (!url) throw new Error('The image server did not return an upload URL.');
+          fileNumber++;
+          uploaded = await uploadFile(item.file, (percent) => setProgress(`Uploading file ${fileNumber} of ${uploads}: ${percent}%…`));
+          url = uploaded.url;
           // Keep completed uploads in the draft so a failed save can be retried without uploading twice.
-          setAttachments((items) => items.map((current) => current.id === item.id ? { ...current, url, file: undefined } : current));
+          setAttachments((items) => items.map((current) => current.id === item.id ? { ...current, ...uploaded, file: undefined } : current));
         }
-        savedAttachments.push(item.type === 'image' ? { type: 'image', url, alt: item.alt } : { type: 'link', url, title: item.title });
+        savedAttachments.push({ ...item, ...uploaded, url });
       }
       setProgress('Keeping this moment…');
       await onSave({
@@ -164,10 +174,10 @@ export default function NoteEditor({ note, onSave, onCancel }) {
           <div className="draft-attachments">
             {attachments.map((item, index) => (
               <div className="draft-attachment" key={item.id}>
-                {item.type === 'image' ? <DraftPhoto item={item} /> : <a href={item.url} target="_blank" rel="noopener noreferrer">{new URL(item.url).hostname} ↗</a>}
+                <DraftAttachment item={item} />
                 <label>
-                  <span className="sr-only">{item.type === 'image' ? `Photo ${index + 1} description` : `Link ${index + 1} title`}</span>
-                  <input value={item.type === 'image' ? item.alt : item.title} onChange={(event) => setAttachments((items) => items.map((current) => current.id === item.id ? { ...current, [item.type === 'image' ? 'alt' : 'title']: event.target.value } : current))} maxLength={item.type === 'image' ? 500 : 200} placeholder={item.type === 'image' ? 'A caption / image description…' : 'Give this link a title…'} />
+                  <span className="sr-only">{item.type === 'image' ? `Photo ${index + 1} description` : `Attachment ${index + 1} title`}</span>
+                  <input value={(item.type === 'image' ? item.alt : item.title) || ''} onChange={(event) => setAttachments((items) => items.map((current) => current.id === item.id ? { ...current, [item.type === 'image' ? 'alt' : 'title']: event.target.value } : current))} maxLength={item.type === 'image' ? 500 : 200} placeholder={item.type === 'image' ? 'A caption / image description…' : 'Give this attachment a title…'} />
                 </label>
                 <button type="button" className="attachment-remove" aria-label={`Remove attachment ${index + 1}`} onClick={() => setAttachments((items) => items.filter((current) => current.id !== item.id))}>×</button>
               </div>
@@ -186,12 +196,13 @@ export default function NoteEditor({ note, onSave, onCancel }) {
         {showDate && <label className="editor-date"><span className="label">Date and time</span><input type="datetime-local" className="field" value={when} max={toLocalInput(new Date())} onChange={(event) => setWhen(event.target.value)} /></label>}
         <div className="editor-tools">
           <div className="editor-attachment-tools">
-            <button type="button" className="text-button" onClick={() => fileInput.current.click()}>+ Photos</button>
-            <input ref={fileInput} className="sr-only" tabIndex={-1} aria-label="Upload photos" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={(event) => addFiles(event.target.files)} />
+            <button type="button" className="text-button" onClick={() => fileInput.current.click()}>+ Upload files</button>
+            <input ref={fileInput} className="sr-only" tabIndex={-1} aria-label="Upload attachments" type="file" accept={FILE_ACCEPT} multiple onChange={(event) => addFiles(event.target.files)} />
+            {['photo', 'video', 'audio'].map((mode) => <button key={mode} type="button" className="text-button" disabled={attachments.length >= MAX_ATTACHMENTS} onClick={() => setCapture(mode)}>{mode === 'photo' ? 'Take photo' : `Record ${mode}`}</button>)}
             <button type="button" className="text-button" aria-expanded={showLink} onClick={() => setShowLink((current) => !current)}>+ Link / embed</button>
             <button type="button" className="text-button" aria-expanded={showDate} onClick={() => setShowDate((current) => !current)}>Date</button>
           </div>
-          <span className="editor-hint">Drop or paste photos · {attachments.length}/{MAX_ATTACHMENTS}</span>
+          <span className="editor-hint">Drop files or paste photos · 250 MB per file · {attachments.length}/{MAX_ATTACHMENTS}</span>
         </div>
         <div className="editor-bottom">
           <MoodPicker value={mood} onChange={setMood} />
@@ -203,6 +214,7 @@ export default function NoteEditor({ note, onSave, onCancel }) {
           </div>
         </div>
       </fieldset>
+      {capture && <MediaCapture mode={capture} onAdd={addFiles} onClose={() => setCapture(null)} />}
       {progress && <p className="editor-progress" role="status">{progress}</p>}
       {error && <p className="editor-error" role="alert">{error}</p>}
     </form>

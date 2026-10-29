@@ -1,19 +1,35 @@
 import { getStore } from '@netlify/blobs';
-import { MOOD_KEYS } from './schema.mjs';
-
-// Moods from the original ten-mood palette, folded into the current five.
-const LEGACY_MOODS = { withered: 'sad', weeping: 'sad', hollow: 'meh', overcast: 'sad', bruised: 'sad', longing: 'sad', numb: 'meh', seething: 'angry', solace: 'calm', fleeting: 'happy' };
+import { noteRepository } from './database.mjs';
 
 export const journalStore = () => getStore({ name: 'journal', consistency: 'strong' });
 export const imageStore = () => getStore({ name: 'images', consistency: 'strong' });
+export const mediaStore = () => getStore({ name: 'media', consistency: 'strong' });
 
-export async function loadNotes() {
-  const notes = (await journalStore().get('notes', { type: 'json' })) ?? [];
-  return notes.map((n) => (MOOD_KEYS.includes(n.mood) ? n : { ...n, mood: LEGACY_MOODS[n.mood] ?? 'meh' }));
+export async function migrateLegacyNotes() {
+  return noteRepository.migrateLegacy(async () => (await journalStore().get('notes', { type: 'json' })) ?? []);
 }
 
-export async function saveNotes(notes) {
-  await journalStore().setJSON('notes', notes);
+let migration;
+async function ensureMigrated() {
+  migration ??= migrateLegacyNotes().catch((error) => { migration = undefined; throw error; });
+  await migration;
+}
+
+export async function loadNotes(options) {
+  await ensureMigrated();
+  return noteRepository.list(options);
+}
+export async function createNote(note) {
+  await ensureMigrated();
+  return noteRepository.create(note);
+}
+export async function updateNote(id, change) {
+  await ensureMigrated();
+  return noteRepository.update(id, change);
+}
+export async function deleteNote(id) {
+  await ensureMigrated();
+  return noteRepository.remove(id);
 }
 
 export { IMAGE_PREFIX } from '../../shared/attachments.js';

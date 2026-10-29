@@ -18,7 +18,7 @@ export function selectNotes(notes, filters, month) {
   const query = filters.search?.trim().toLowerCase();
   const filtered = notes.filter((note) => {
     if (!matchesDate(note, filters)) return false;
-    if (query && ![note.text, ...getAttachments(note).map((item) => `${item.title || item.alt || ''} ${item.url}`)].join(' ').toLowerCase().includes(query)) return false;
+    if (query && ![note.text, ...getAttachments(note).map((item) => `${item.title || item.alt || ''} ${item.name || ''} ${item.url}`)].join(' ').toLowerCase().includes(query)) return false;
     if (filters.view === 'calendar' && !filters.year && !filters.month && !filters.day) {
       const date = new Date(note.createdAt);
       return date.getFullYear() === month.year && date.getMonth() === month.index;

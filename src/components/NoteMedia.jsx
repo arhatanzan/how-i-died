@@ -1,21 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
 import { getEmbed } from '../../shared/attachments';
+import { formatBytes, mediaId } from '../../shared/media';
+import { useMediaUrl } from '../lib/useMediaUrl';
 
 function Photo({ image, onOpen }) {
   const [failed, setFailed] = useState(false);
-  if (failed) {
+  const source = useMediaUrl(image);
+  if (failed || source.error) {
     return (
       <div className="photo-unavailable" role="status">
         <p>This photo couldn’t be loaded.</p>
-        <a href={image.url} target="_blank" rel="noopener noreferrer">Open original photo ↗</a>
-        <button type="button" className="text-button" onClick={() => setFailed(false)}>Try again</button>
+        {source.error && <p role="alert">{source.error}</p>}
+        <button type="button" className="text-button" onClick={() => { setFailed(false); source.retry(); }}>Try again</button>
       </div>
     );
   }
+  if (!source.url) return <p role="status">Loading photo · {source.progress}%</p>;
   return (
     <figure className="note-photo">
       <button type="button" onClick={onOpen} aria-label={`Enlarge photo: ${image.alt || 'journal photo'}`}>
-        <img src={image.url} alt={image.alt || ''} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(true)} />
+        <img src={source.url} alt={image.alt || ''} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(true)} />
       </button>
       {image.alt && <figcaption>{image.alt}</figcaption>}
     </figure>
@@ -26,6 +30,7 @@ function PhotoViewer({ images, initialIndex, onClose }) {
   const dialog = useRef(null);
   const [index, setIndex] = useState(initialIndex);
   const image = images[index];
+  const source = useMediaUrl(image);
 
   useEffect(() => {
     const element = dialog.current;
@@ -57,7 +62,8 @@ function PhotoViewer({ images, initialIndex, onClose }) {
     >
       <button type="button" className="viewer-close" onClick={onClose} aria-label="Close photo">×</button>
       <figure>
-        <img key={image.url} src={image.url} alt={image.alt || 'Journal photo'} />
+        {source.url ? <img key={image.url} src={source.url} alt={image.alt || 'Journal photo'} /> : <p role="status">Loading photo · {source.progress}%</p>}
+        {source.error && <p role="alert">{source.error}<button type="button" className="text-button" onClick={source.retry}>Try again</button></p>}
         <figcaption>{image.alt || 'A moment kept.'}</figcaption>
       </figure>
       {images.length > 1 && (
@@ -67,7 +73,7 @@ function PhotoViewer({ images, initialIndex, onClose }) {
           <button type="button" onClick={() => move(1)} aria-label="Next photo">→</button>
         </div>
       )}
-      <a href={image.url} target="_blank" rel="noopener noreferrer">Open original ↗</a>
+      {source.url && <a href={source.url} download={image.name} target="_blank" rel="noopener noreferrer">Open / download original ↗</a>}
     </dialog>
   );
 }
@@ -149,6 +155,25 @@ function LinkAttachment({ attachment }) {
   );
 }
 
+function FileAttachment({ attachment }) {
+  const [loaded, setLoaded] = useState(false);
+  const [playbackError, setPlaybackError] = useState('');
+  const source = useMediaUrl(attachment, loaded);
+  const label = attachment.title || attachment.name;
+  return (
+    <figure className="note-file">
+      <figcaption><strong>{label}</strong><small>{attachment.name} · {formatBytes(attachment.size)}</small></figcaption>
+      {!loaded && <button type="button" className="btn-outline" onClick={() => setLoaded(true)}>{attachment.type === 'file' ? 'Prepare download' : `Load ${attachment.type}`}</button>}
+      {loaded && !source.url && !source.error && <p role="status">Loading · {source.progress}%</p>}
+      {source.url && attachment.type === 'audio' && <audio controls preload="metadata" src={source.url} aria-label={label} onError={() => setPlaybackError('This browser cannot play this audio format. Download it to listen in another app.')} />}
+      {source.url && attachment.type === 'video' && <video controls playsInline preload="metadata" src={source.url} aria-label={label} onError={() => setPlaybackError('This browser cannot play this video format. Download it to watch in another app.')} />}
+      {source.url && <a className="text-button" href={source.url} download={attachment.name}>Download file</a>}
+      {source.error && <p className="editor-error" role="alert">{source.error} <button type="button" className="text-button" onClick={source.retry}>Try again</button></p>}
+      {playbackError && <p className="editor-error" role="alert">{playbackError}</p>}
+    </figure>
+  );
+}
+
 export default function NoteMedia({ attachments }) {
   const [viewing, setViewing] = useState(null);
   const images = attachments.filter((item) => item.type === 'image');
@@ -161,6 +186,7 @@ export default function NoteMedia({ attachments }) {
         </div>
       )}
       {links.map((attachment, index) => <LinkAttachment key={`${attachment.url}-${index}`} attachment={attachment} />)}
+      {attachments.filter((item) => mediaId(item.url) && item.type !== 'image').map((attachment) => <FileAttachment key={attachment.assetId} attachment={attachment} />)}
       {viewing !== null && <PhotoViewer images={images} initialIndex={viewing} onClose={() => setViewing(null)} />}
     </>
   );

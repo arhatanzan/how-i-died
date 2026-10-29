@@ -8,10 +8,12 @@ import { BlobsServer } from '@netlify/blobs/server';
 import notesHandler from '../netlify/functions/notes.mjs';
 import imagesHandler from '../netlify/functions/images.mjs';
 import { issueToken } from '../netlify/lib/auth.mjs';
-import { imageStore, saveNotes } from '../netlify/lib/store.mjs';
+import { imageStore } from '../netlify/lib/store.mjs';
+import { testDatabase } from './support/database.mjs';
 import { MAX_IMAGE_BYTES } from '../shared/attachments.js';
 
-test('note and image APIs persist to an isolated local Blobs store', async (t) => {
+test('note APIs use Postgres and image APIs use an isolated Blobs store', async (t) => {
+  const { seed } = await testDatabase(t);
   const directory = await mkdtemp(join(tmpdir(), 'journal-api-test-'));
   const server = new BlobsServer({ directory, token: 'local-test-token' });
   const { port } = await server.start();
@@ -39,7 +41,7 @@ test('note and image APIs persist to an isolated local Blobs store', async (t) =
   });
   const notes = (method, body, id, authenticated = true) => notesHandler(request('/api/notes', method, body, authenticated), { params: { id } });
   const image = (url, authenticated = true) => imagesHandler(request(url, 'GET', undefined, authenticated), { params: { key: url.split('/').at(-1) } });
-  await saveNotes([]);
+  await seed([]);
   let uploaded;
   let saved;
 
@@ -113,7 +115,7 @@ test('note and image APIs persist to an isolated local Blobs store', async (t) =
     assert.equal((await notes('PATCH', { text: '', attachments: [] }, saved.id)).status, 400);
     const legacyKey = '12345678-1234-1234-1234-123456789abc';
     await imageStore().set(legacyKey, new Uint8Array([1, 2, 3]).buffer);
-    await saveNotes([{ id: 'legacy', text: '', mood: 'calm', isPublic: true, imageUrl: `/api/images/${legacyKey}`, createdAt: new Date().toISOString() }]);
+    await seed([{ id: 'legacy', text: '', mood: 'calm', isPublic: true, imageUrl: `/api/images/${legacyKey}`, createdAt: new Date().toISOString() }]);
     assert.equal((await image(`/api/images/${legacyKey}`, false)).status, 200);
     await notes('PATCH', { isPublic: false }, 'legacy');
     assert.equal((await image(`/api/images/${legacyKey}`, false)).status, 404);

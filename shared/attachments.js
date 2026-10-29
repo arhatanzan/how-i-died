@@ -29,7 +29,20 @@ export function validateAttachments(value) {
     throw new Error(`Use up to ${MAX_ATTACHMENTS} attachments per note.`);
   }
   return value.map((item) => {
-    if (!item || !['image', 'link'].includes(item.type)) throw new Error('Unsupported attachment type.');
+    if (!item || !['image', 'link', 'audio', 'video', 'file'].includes(item.type)) throw new Error('Unsupported attachment type.');
+    if (mediaId(item.url)) {
+      const metadata = fileMetadata({ name: item.name, size: item.size, type: item.contentType });
+      if (metadata.type !== item.type || metadata.contentType !== item.contentType || item.assetId !== mediaId(item.url)) {
+        throw new Error('Attachment metadata does not match the uploaded file.');
+      }
+      const labelKey = item.type === 'image' ? 'alt' : 'title';
+      const limit = item.type === 'image' ? 500 : 200;
+      if (item[labelKey] !== undefined && (typeof item[labelKey] !== 'string' || item[labelKey].length > limit)) {
+        throw new Error(`Attachment descriptions must be ${limit} characters or fewer.`);
+      }
+      return { ...metadata, assetId: item.assetId, url: item.url, [labelKey]: item[labelKey]?.trim() || '' };
+    }
+    if (!['image', 'link'].includes(item.type)) throw new Error('Audio, video, and documents must be uploaded first.');
     if (item.type === 'image') {
       if (!isImageUrl(item.url)) throw new Error('Images need a valid image upload or http(s) URL.');
       if (item.alt !== undefined && (typeof item.alt !== 'string' || item.alt.length > 500)) {
@@ -106,3 +119,4 @@ export function splitLinks(text) {
     return url ? [{ text: candidate, url }, ...(part.length > candidate.length ? [{ text: part.slice(candidate.length) }] : [])] : [{ text: part }];
   });
 }
+import { fileMetadata, mediaId } from './media.js';

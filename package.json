@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
+    "export": "node scripts/export-journal.mjs",
     "dev": "netlify dev",
     "dev:ui": "vite",
     "build": "vite build",
@@ -12,10 +13,12 @@
   },
   "dependencies": {
     "@netlify/blobs": "^11.1.6",
+    "@netlify/database": "^2.0.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.13",
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.1.2",
     "tailwindcss": "^4.3.3",

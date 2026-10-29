@@ -1,11 +1,12 @@
 const HEADERS = { 'x-requested-with': 'how-i-died' };
 
-async function request(path, { method = 'GET', body, headers = {}, raw = false } = {}) {
+async function request(path, { method = 'GET', body, headers = {}, raw = false, signal } = {}) {
   let res;
   try {
     res = await fetch(path, {
       method,
       credentials: 'same-origin',
+      signal,
       headers: {
         ...HEADERS,
         ...(body !== undefined && !raw ? { 'content-type': 'application/json' } : {}),
@@ -14,6 +15,7 @@ async function request(path, { method = 'GET', body, headers = {}, raw = false }
       body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
     });
   } catch (cause) {
+    if (cause.name === 'AbortError') throw cause;
     throw new Error('Could not connect to the archive API. Run `npm run dev` and open http://localhost:8888/.', { cause });
   }
   if (!(res.headers.get('content-type') || '').includes('application/json')) {
@@ -43,4 +45,9 @@ export const api = {
   uploadImage: (blob) =>
     request('/api/images', { method: 'POST', body: blob, raw: true, headers: { 'content-type': blob.type } }),
 
+  startUpload: (metadata) => request('/api/media', { method: 'POST', body: metadata }),
+  uploadPart: (id, index, blob) => request(`/api/media/${id}/parts/${index}`, { method: 'PUT', body: blob, raw: true, headers: { 'content-type': 'application/octet-stream' } }),
+  completeUpload: (id) => request(`/api/media/${id}/complete`, { method: 'POST', body: {} }),
+  deleteUpload: (id) => request(`/api/media/${id}`, { method: 'DELETE' }),
+  mediaManifest: (id, signal) => request(`/api/media/${id}`, { signal }),
 };
