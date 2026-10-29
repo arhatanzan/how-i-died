@@ -21,7 +21,10 @@ async function request(path, { method = 'GET', body, headers = {}, raw = false, 
     throw new Error('Could not connect to the archive API. Run `npm run dev` and open http://localhost:8888/.', { cause });
   }
   if (!(res.headers.get('content-type') || '').includes('application/json')) {
-    const err = new Error('The archive is unreachable. (Run `netlify dev` and open port 8888.)');
+    const contentType = res.headers.get('content-type');
+    const errMsg = `The archive is unreachable. (Run \`netlify dev\` and open port 8888.) [${res.status} ${contentType || 'no content-type'} ${path}]`;
+    console.error('API Error - non-JSON response:', { path, status: res.status, contentType, url: res.url });
+    const err = new Error(errMsg);
     err.status = res.status;
     throw err;
   }
