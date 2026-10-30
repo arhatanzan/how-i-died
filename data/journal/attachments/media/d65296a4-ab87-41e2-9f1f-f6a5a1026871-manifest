@@ -1,1 +1,1 @@
-{"schemaVersion":1,"id":"d65296a4-ab87-41e2-9f1f-f6a5a1026871","type":"audio","name":"audio-2026-10-30-12-22-12.webm","size":12889,"contentType":"audio/webm","parts":1,"chunkBytes":4194304,"complete":false,"createdAt":"2026-10-30T06:52:28.787Z"}
+{"schemaVersion":1,"id":"d65296a4-ab87-41e2-9f1f-f6a5a1026871","type":"audio","name":"audio-2026-10-30-12-22-12.webm","size":12889,"contentType":"audio/webm","parts":1,"chunkBytes":4194304,"complete":true,"createdAt":"2026-10-30T06:52:28.787Z","sha256":["1bb63e87d2294a6ea215f11189ad0379b9186745871bc2b93c0a91e45f1e970e"]}
