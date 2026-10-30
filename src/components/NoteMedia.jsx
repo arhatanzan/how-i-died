@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Play } from 'lucide-react';
 import { getEmbed } from '../../shared/attachments';
 import { formatBytes, mediaId } from '../../shared/media';
 import { useMediaUrl } from '../lib/useMediaUrl';
@@ -116,10 +117,17 @@ function FileAttachment({ attachment }) {
   const [playbackError, setPlaybackError] = useState('');
   const source = useMediaUrl(attachment, loaded);
   const label = attachment.title || attachment.name;
+  const isPlayback = attachment.type === 'audio' || attachment.type === 'video';
   return (
-    <figure className="note-file">
+    <figure className={`note-file${isPlayback ? ` note-file-media note-file-${attachment.type}` : ''}`}>
+      {!loaded && isPlayback && (
+        <button type="button" className="embed-cover media-cover" aria-label={`Load ${attachment.type}: ${label}`} onClick={() => setLoaded(true)}>
+          <span className="embed-play" aria-hidden="true"><Play size={22} /></span>
+          <span>Load {attachment.type}</span>
+        </button>
+      )}
       <figcaption><strong>{label}</strong><small>{attachment.name} · {formatBytes(attachment.size)}</small></figcaption>
-      {!loaded && <button type="button" className="btn-outline" onClick={() => setLoaded(true)}>{attachment.type === 'file' ? 'Prepare download' : `Load ${attachment.type}`}</button>}
+      {!loaded && !isPlayback && <button type="button" className="btn-outline" onClick={() => setLoaded(true)}>Prepare download</button>}
       {loaded && !source.url && !source.error && <p role="status">Loading · {source.progress}%</p>}
       {source.url && attachment.type === 'audio' && <audio controls preload="metadata" src={source.url} aria-label={label} onError={() => setPlaybackError('This browser cannot play this audio format. Try downloading it to listen in another app.')} />}
       {source.url && attachment.type === 'video' && <video controls playsInline preload="metadata" src={source.url} aria-label={label} onError={() => setPlaybackError('This browser cannot play this video format. Try downloading it to watch in another app.')} />}

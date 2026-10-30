@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { RotateCcw, Search, SlidersHorizontal } from 'lucide-react';
 import { MONTHS, daysInMonth } from '../lib/dates';
 
 const VIEWS = [
@@ -13,6 +15,8 @@ const SORTS = [
 ];
 
 export default function Toolbar({ filters, setFilters, total, shown, years, onDateChange }) {
+  const [expanded, setExpanded] = useState(false);
+  const activeCount = [filters.search, filters.year, filters.month, filters.day].filter(Boolean).length;
   const set = (patch) => setFilters((f) => ({ ...f, ...patch }));
   const selectedDay = filters.day?.slice(-2).replace(/^0/, '') || '';
   const days = filters.year && filters.month
@@ -20,14 +24,9 @@ export default function Toolbar({ filters, setFilters, total, shown, years, onDa
     : 0;
 
   return (
-    <section id="journal-filters" className="archive-toolbar" aria-label="Archive filters">
+    <section id="journal-filters" className="archive-toolbar" aria-label="Archive filters" data-expanded={expanded}>
       <div className="archive-intro">
         <div className="archive-title">
-          <svg className="archive-sketch" viewBox="0 0 52 64" fill="none" aria-hidden="true">
-            <path d="M25 59C29 46 25 32 29 18M27 44C17 43 10 36 9 28C20 29 27 35 27 44ZM28 33C37 31 43 24 43 16C33 18 28 24 28 33Z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M29 19C21 19 18 13 21 9C24 5 29 8 29 13C29 7 34 4 37 8C40 12 36 18 29 19Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-            <path d="M18 60C24 58 31 58 37 60" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-          </svg>
           <div>
             <h2>From the archive</h2>
             <p className="archive-count" aria-live="polite">{shown === total ? `${total} ${total === 1 ? 'entry' : 'entries'}` : `${shown} of ${total} entries`}</p>
@@ -43,12 +42,15 @@ export default function Toolbar({ filters, setFilters, total, shown, years, onDa
             </button>
           ))}
         </div>
+        <button type="button" className="archive-filter-toggle" aria-expanded={expanded} aria-controls="archive-filter-controls" onClick={() => setExpanded((current) => !current)}>
+          <SlidersHorizontal size={16} />
+          <span>Filters{activeCount ? ` (${activeCount})` : ''}</span>
+        </button>
       </div>
-      <div className="archive-filters-container">
+      <div id="archive-filter-controls" className="archive-filters-container">
         <div className="archive-filters-left">
           <div className="archive-browse">
             <div className="archive-dates" aria-label="Filter entries by date">
-              <span className="archive-prompt">Wander through</span>
               <label>
                 <span className="sr-only">Year</span>
                 <select
@@ -115,11 +117,10 @@ export default function Toolbar({ filters, setFilters, total, shown, years, onDa
           <div className="archive-search">
             <label>
               <span className="sr-only">Search notes</span>
-              <input type="search" value={filters.search} onChange={(event) => set({ search: event.target.value })} placeholder="Find a word, a place, a memory…" />
+              <Search size={16} aria-hidden="true" />
+              <input type="search" value={filters.search} onChange={(event) => set({ search: event.target.value })} placeholder="Search entries" />
             </label>
-            {(filters.search || filters.year || filters.month || filters.day) && (
-              <button type="button" className="text-button" onClick={() => set({ search: '', year: '', month: '', day: null })}>Clear filters ↺</button>
-            )}
+            <button type="button" className="archive-reset" disabled={!activeCount} aria-label="Clear filters" title="Clear filters" onClick={() => set({ search: '', year: '', month: '', day: null })}><RotateCcw size={16} /></button>
           </div>
         </div>
       </div>
