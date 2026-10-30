@@ -3,7 +3,7 @@
  * React component for managing Git LFS, deduplication, and storage
  */
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const StorageAdminUI = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
