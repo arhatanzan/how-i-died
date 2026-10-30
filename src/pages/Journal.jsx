@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import CalendarView from '../components/CalendarView';
 import ArchiveStatus from '../components/ArchiveStatus';
 import Composer from '../components/Composer';
 import Feed from '../components/Feed';
 import Toolbar from '../components/Toolbar';
+import TimelineNav from '../components/TimelineNav';
 import { matchesDate, selectNotes } from '../lib/journal';
 
 const VIEW_KEY = 'hid:view';
@@ -23,8 +24,12 @@ function initialFilters() {
 export default function Journal({ notes, status, error, retry, freshIds, onAdd, onUpdate, onDelete, authenticated }) {
   const [filters, setFilters] = useState(initialFilters);
   const [month, setMonth] = useState(() => ({ year: new Date().getFullYear(), index: new Date().getMonth() }));
+  const entriesRef = useRef(null);
 
   useEffect(() => localStorage.setItem(VIEW_KEY, filters.view), [filters.view]);
+  useEffect(() => {
+    if (entriesRef.current) entriesRef.current.scrollTop = 0;
+  }, [filters.view, filters.year, filters.month, filters.day, filters.sort, filters.search]);
 
   const years = useMemo(
     () => [...new Set([new Date().getFullYear(), ...notes.map((n) => new Date(n.createdAt).getFullYear())])]
@@ -46,7 +51,7 @@ export default function Journal({ notes, status, error, retry, freshIds, onAdd, 
   );
 
   return (
-    <div className="journal-page relative mx-auto w-full max-w-7xl px-5 pb-12 sm:px-8">
+    <div className="journal-page relative mx-auto w-full max-w-7xl px-5 pb-12 sm:px-8" data-view={filters.view}>
       <div className="journal-page-heading">
         <p>A small record of a life in progress</p>
         <h1>The Journal</h1>
@@ -61,36 +66,51 @@ export default function Journal({ notes, status, error, retry, freshIds, onAdd, 
 
       <Toolbar filters={filters} setFilters={setFilters} total={notes.length} shown={filtered.length} years={years} onDateChange={setDateFilters} />
 
-      {filters.view === 'calendar' && (
-        <CalendarView
-          notes={calendarNotes}
-          month={month}
-          setMonth={(m) => {
-            setMonth(m);
-            setFilters((f) => ({ ...f, year: String(m.year), month: String(m.index + 1).padStart(2, '0'), day: null }));
-          }}
-          selected={filters.day}
-          onSelect={(day) => setFilters((f) => ({
-            ...f,
-            year: day ? day.slice(0, 4) : f.year,
-            month: day ? day.slice(5, 7) : f.month,
-            day,
-          }))}
-        />
-      )}
-
-      <ArchiveStatus status={status} error={error} onRetry={retry} />
-      {status === 'ready' && (
-        <Feed
-          notes={filtered}
-          layout={filters.view === 'masonry' ? 'masonry' : 'timeline'}
-          isAdmin={authenticated}
-          onUpdate={onUpdate}
-          onDelete={onDelete}
-          freshIds={freshIds}
-          emptyText={notes.length ? 'No notes match these filters.' : 'Nothing written here yet.'}
-        />
-      )}
+      <div className={filters.view === 'masonry' ? undefined : 'journal-split-layout'}>
+        {filters.view !== 'masonry' && (
+          <div className="journal-split-sidebar">
+            {filters.view === 'timeline' ? (
+              <TimelineNav notes={notes} filters={filters} onDateChange={setDateFilters} />
+            ) : (
+              <CalendarView
+                notes={calendarNotes}
+                month={month}
+                setMonth={(m) => {
+                  setMonth(m);
+                  setFilters((f) => ({ ...f, year: String(m.year), month: String(m.index + 1).padStart(2, '0'), day: null }));
+                }}
+                selected={filters.day}
+                onSelect={(day) => setFilters((f) => ({
+                  ...f,
+                  year: day ? day.slice(0, 4) : f.year,
+                  month: day ? day.slice(5, 7) : f.month,
+                  day,
+                }))}
+              />
+            )}
+          </div>
+        )}
+        <div
+          ref={entriesRef}
+          className={filters.view === 'masonry' ? undefined : 'journal-split-content'}
+          role="region"
+          aria-label={filters.view === 'calendar' ? 'Calendar entries' : filters.view === 'timeline' ? 'Timeline entries' : 'Grid entries'}
+          tabIndex={filters.view === 'masonry' ? undefined : 0}
+        >
+          <ArchiveStatus status={status} error={error} onRetry={retry} />
+          {status === 'ready' && (
+            <Feed
+              notes={filtered}
+              layout={filters.view === 'masonry' ? 'masonry' : 'timeline'}
+              isAdmin={authenticated}
+              onUpdate={onUpdate}
+              onDelete={onDelete}
+              freshIds={freshIds}
+              emptyText={notes.length ? 'No notes match these filters.' : 'Nothing written here yet.'}
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }

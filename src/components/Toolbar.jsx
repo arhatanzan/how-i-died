@@ -42,6 +42,12 @@ export default function Toolbar({ filters, setFilters, total, shown, years, onDa
             </button>
           ))}
         </div>
+        <label className="archive-order">
+          <span className="sr-only">Sort by</span>
+          <select value={filters.sort} onChange={(e) => set({ sort: e.target.value })} className="archive-select" aria-label="Sort">
+            {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+          </select>
+        </label>
         <button type="button" className="archive-filter-toggle" aria-expanded={expanded} aria-controls="archive-filter-controls" onClick={() => setExpanded((current) => !current)}>
           <SlidersHorizontal size={16} />
           <span>Filters{activeCount ? ` (${activeCount})` : ''}</span>
@@ -106,14 +112,6 @@ export default function Toolbar({ filters, setFilters, total, shown, years, onDa
           </div>
         </div>
         <div className="archive-filters-right">
-          <div className="archive-browse">
-            <label className="archive-order">
-              <span className="sr-only">Sort by</span>
-              <select value={filters.sort} onChange={(e) => set({ sort: e.target.value })} className="archive-select" aria-label="Sort">
-                {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-              </select>
-            </label>
-          </div>
           <div className="archive-search">
             <label>
               <span className="sr-only">Search notes</span>
