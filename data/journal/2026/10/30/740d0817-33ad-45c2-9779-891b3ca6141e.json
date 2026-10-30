@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "740d0817-33ad-45c2-9779-891b3ca6141e",
+  "text": "",
+  "mood": "meh",
+  "isPublic": true,
+  "featured": false,
+  "imageUrl": "/api/media/e0a770b8-cd64-43f3-8847-3282c6b7e8ef",
+  "attachments": [
+    {
+      "type": "image",
+      "name": "photo-2026-10-30-12-21-48.jpg",
+      "size": 149051,
+      "contentType": "image/jpeg",
+      "assetId": "e0a770b8-cd64-43f3-8847-3282c6b7e8ef",
+      "url": "/api/media/e0a770b8-cd64-43f3-8847-3282c6b7e8ef",
+      "alt": ""
+    },
+    {
+      "type": "video",
+      "name": "video-2026-10-30-12-22-03.webm",
+      "size": 618009,
+      "contentType": "video/webm",
+      "assetId": "bae666f7-314f-4ae8-9555-d68a7f11cfea",
+      "url": "/api/media/bae666f7-314f-4ae8-9555-d68a7f11cfea",
+      "title": ""
+    },
+    {
+      "type": "audio",
+      "name": "audio-2026-10-30-12-22-12.webm",
+      "size": 12889,
+      "contentType": "audio/webm",
+      "assetId": "d65296a4-ab87-41e2-9f1f-f6a5a1026871",
+      "url": "/api/media/d65296a4-ab87-41e2-9f1f-f6a5a1026871",
+      "title": ""
+    }
+  ],
+  "createdAt": "2026-10-30T06:52:35.032Z",
+  "updatedAt": "2026-10-30T06:52:35.032Z",
+  "_storedAt": "2026-10-30T06:52:35.033Z",
+  "_githubPath": "data/journal/2026/10/30/740d0817-33ad-45c2-9779-891b3ca6141e.json"
+}
