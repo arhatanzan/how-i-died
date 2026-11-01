@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { MAX_FILE_BYTES, MAX_RECORDING_SECONDS } from '../../shared/media.js';
+import { createVideoRecordingStream } from '../lib/capture.js';
 
 const clock = (seconds) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
@@ -8,47 +9,83 @@ export default function MediaCapture({ mode, onAdd, onClose }) {
   const preview = useRef(null);
   const stream = useRef(null);
   const recorder = useRef(null);
+  const microphone = useRef([]);
+  const recordingOutput = useRef(null);
   const active = useRef(true);
+  const [camera, setCamera] = useState(null);
+  const facingMode = camera || 'user';
   const [status, setStatus] = useState('requesting');
+  const [connecting, setConnecting] = useState(true);
   const [error, setError] = useState('');
   const [seconds, setSeconds] = useState(0);
   const [result, setResult] = useState(null);
   const [resultUrl, setResultUrl] = useState('');
 
   useEffect(() => {
-    let cancelled = false;
     active.current = true;
     const element = dialog.current;
     const previousFocus = document.activeElement;
     element.showModal();
+    return () => {
+      active.current = false;
+      if (recorder.current?.state === 'recording') recorder.current.stop();
+      recordingOutput.current?.stop();
+      microphone.current.forEach((track) => track.stop());
+      microphone.current = [];
+      element.close();
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let connectedStream;
+    const duringRecording = recorder.current?.state === 'recording';
+    if (!duringRecording) setStatus('requesting');
+    setConnecting(true);
+    setError('');
     async function connect() {
       try {
         if (!navigator.mediaDevices?.getUserMedia) throw new Error('Live capture requires HTTPS (or localhost) and a browser with camera/microphone support. You can still upload a file.');
         if (mode !== 'photo' && !window.MediaRecorder) throw new Error('Recording is not supported in this browser. You can still upload an audio or video file.');
         const media = await navigator.mediaDevices.getUserMedia({
-          video: mode === 'audio' ? false : { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: mode !== 'photo',
+          video: mode === 'audio' ? false : {
+            facingMode: camera ? { exact: camera } : { ideal: 'user' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: mode !== 'photo' && !microphone.current.length,
         });
-        if (cancelled) { media.getTracks().forEach((track) => track.stop()); return; }
+        if (cancelled || (duringRecording && recorder.current?.state !== 'recording')) {
+          media.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        connectedStream = media;
+        if (media.getAudioTracks().length) microphone.current = media.getAudioTracks();
         stream.current = media;
         if (preview.current) preview.current.srcObject = media;
-        setStatus('ready');
+        if (!duringRecording) setStatus('ready');
       } catch (cause) {
-        if (cancelled) return;
-        setError(cause.name === 'NotAllowedError' ? 'Camera or microphone permission was denied. Allow access in your browser settings, or upload a file instead.' : cause.message);
-        setStatus('error');
+        if (cancelled || (duringRecording && recorder.current?.state !== 'recording')) return;
+        setError(cause.name === 'NotAllowedError'
+          ? 'Camera or microphone permission was denied. Allow access in your browser settings, or upload a file instead.'
+          : cause.name === 'OverconstrainedError' || cause.name === 'NotFoundError'
+            ? mode === 'audio'
+              ? 'The microphone is unavailable. Connect a microphone, or upload a file instead.'
+              : `The ${facingMode === 'environment' ? 'rear' : 'front'} camera${mode === 'video' ? ' or microphone' : ''} is unavailable. Try switching cameras, or upload a file instead.`
+            : cause.message);
+        if (!duringRecording) setStatus('error');
+      } finally {
+        if (!cancelled) setConnecting(false);
       }
     }
     connect();
     return () => {
       cancelled = true;
-      active.current = false;
-      if (recorder.current?.state === 'recording') recorder.current.stop();
-      stream.current?.getTracks().forEach((track) => track.stop());
-      element.close();
-      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+      connectedStream?.getVideoTracks().forEach((track) => track.stop());
+      stream.current = null;
     };
-  }, [mode]);
+  }, [mode, camera, facingMode]);
 
   useEffect(() => {
     if (!result) return;
@@ -70,6 +107,10 @@ export default function MediaCapture({ mode, onAdd, onClose }) {
 
   function finish(blob, extension) {
     stream.current?.getTracks().forEach((track) => track.stop());
+    microphone.current.forEach((track) => track.stop());
+    microphone.current = [];
+    recordingOutput.current?.stop();
+    recordingOutput.current = null;
     if (!active.current) return;
     if (!blob.size || blob.size > MAX_FILE_BYTES) {
       setError('The recording is empty or exceeds 250 MB. Close this window and try a shorter recording.');
@@ -95,10 +136,15 @@ export default function MediaCapture({ mode, onAdd, onClose }) {
       const context = canvas.getContext('2d');
       if (!context) throw new Error('This browser could not capture a photo.');
       context.drawImage(video, 0, 0);
+      setStatus('capturing');
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
       if (!blob) throw new Error('The photo could not be captured.');
       finish(blob, 'jpg');
-    } catch (cause) { setError(cause.message); }
+    } catch (cause) {
+      if (!active.current) return;
+      setError(cause.message);
+      setStatus('ready');
+    }
   }
 
   function startRecording() {
@@ -110,7 +156,11 @@ export default function MediaCapture({ mode, onAdd, onClose }) {
       const playable = document.createElement(mode === 'audio' ? 'audio' : 'video');
       const supported = candidates.filter((candidate) => MediaRecorder.isTypeSupported(candidate));
       const mimeType = supported.find((candidate) => playable.canPlayType(candidate) === 'probably') || supported[0];
-      const recording = new MediaRecorder(stream.current, {
+      if (mode === 'video') recordingOutput.current = createVideoRecordingStream(preview.current, microphone.current);
+      const input = mode === 'video'
+        ? recordingOutput.current?.stream || new MediaStream([...stream.current.getVideoTracks(), ...microphone.current])
+        : stream.current;
+      const recording = new MediaRecorder(input, {
         ...(mimeType ? { mimeType } : {}),
         audioBitsPerSecond: 128000,
         ...(mode === 'video' ? { videoBitsPerSecond: 1500000 } : {}),
@@ -128,12 +178,18 @@ export default function MediaCapture({ mode, onAdd, onClose }) {
       recording.onerror = (event) => {
         failed = true;
         stream.current?.getTracks().forEach((track) => track.stop());
+        microphone.current.forEach((track) => track.stop());
+        microphone.current = [];
+        recordingOutput.current?.stop();
+        recordingOutput.current = null;
         if (active.current) {
           setStatus('error');
           setError(event.error?.message || 'Recording failed. Close this window and try again.');
         }
       };
       recording.onstop = () => {
+        recordingOutput.current?.stop();
+        recordingOutput.current = null;
         if (failed || !active.current) return;
         const type = recording.mimeType.split(';')[0];
         const extension = type.includes('mp4') ? (mode === 'audio' ? 'm4a' : 'mp4') : type.includes('ogg') ? 'ogg' : 'webm';
@@ -142,15 +198,28 @@ export default function MediaCapture({ mode, onAdd, onClose }) {
       recording.start(1000);
       setSeconds(0);
       setStatus('recording');
-    } catch (cause) { setError(`Could not start recording: ${cause.message}`); }
+    } catch (cause) {
+      recordingOutput.current?.stop();
+      recordingOutput.current = null;
+      setError(`Could not start recording: ${cause.message}`);
+    }
+  }
+
+  function switchCamera() {
+    if (status === 'recording' && !recordingOutput.current) {
+      setError('This browser cannot switch cameras within a recording. Stop this clip to switch cameras, or use a browser with canvas capture support.');
+      return;
+    }
+    setCamera(facingMode === 'user' ? 'environment' : 'user');
   }
 
   return (
     <dialog ref={dialog} className="capture-dialog" aria-label={mode === 'photo' ? 'Take a photo' : `Record ${mode}`} onCancel={(event) => { event.preventDefault(); onClose(); }}>
       <h2>{mode === 'photo' ? 'A live photo' : `Record ${mode}`}</h2>
       {mode !== 'audio' && status !== 'review' && <video ref={preview} autoPlay muted playsInline aria-label="Live camera preview" />}
-      {status === 'requesting' && <p role="status">Waiting for permission…</p>}
+      {status === 'requesting' && <p role="status">Opening {mode === 'audio' ? 'microphone' : `${facingMode === 'environment' ? 'rear' : 'front'} camera`}… Allow access if prompted.</p>}
       {status === 'recording' && <p role="status">Recording · {clock(seconds)} / {clock(MAX_RECORDING_SECONDS)}</p>}
+      {status === 'recording' && connecting && <p role="status">Switching cameras… Audio keeps recording.</p>}
       {status === 'review' && resultUrl && (
         mode === 'photo' ? <img src={resultUrl} alt="Captured photo preview" />
           : mode === 'audio' ? <audio controls src={resultUrl} aria-label="Recorded audio preview" onError={() => setError('This browser cannot preview the recorded audio. You can still add it and download it for playback in another app.')} />
@@ -160,6 +229,11 @@ export default function MediaCapture({ mode, onAdd, onClose }) {
       {error && <p className="editor-error" role="alert">{error}</p>}
       <div className="capture-actions">
         <button type="button" className="text-button" onClick={onClose}>{status === 'review' ? 'Discard' : 'Cancel'}</button>
+        {mode !== 'audio' && status !== 'review' && (
+          <button type="button" className="text-button" disabled={connecting || !['ready', 'error', 'recording'].includes(status)} onClick={switchCamera}>
+            Switch to {facingMode === 'user' ? 'rear' : 'front'} camera
+          </button>
+        )}
         {status === 'ready' && <button type="button" className="btn-primary" onClick={mode === 'photo' ? takePhoto : startRecording}>{mode === 'photo' ? 'Take photo' : 'Start recording'}</button>}
         {status === 'recording' && <button type="button" className="btn-primary" onClick={() => recorder.current.stop()}>Stop recording</button>}
         {status === 'review' && <button type="button" className="btn-primary" onClick={() => { onAdd([result]); onClose(); }}>Use {mode === 'photo' ? 'photo' : 'recording'}</button>}

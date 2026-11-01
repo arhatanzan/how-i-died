@@ -362,7 +362,7 @@
   .capture-dialog h2 { margin-bottom: 1rem; font-family: var(--font-display); font-size: 1.8rem; }
   .capture-dialog video, .capture-dialog img { width: 100%; max-height: 55dvh; object-fit: contain; background: var(--color-paper); }
   .capture-dialog audio { width: 100%; }
-  .capture-actions { display: flex; justify-content: flex-end; gap: 1rem; margin-top: 1rem; }
+  .capture-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 1rem; margin-top: 1rem; }
   .draft-attachment > a { display: block; min-height: 80px; padding: 1.6rem 0.5rem; color: var(--color-ink); font-size: 0.8rem; overflow-wrap: anywhere; }
   .draft-attachment input { width: 100%; min-width: 0; padding: 0.75rem 0.3rem 0.3rem; background: transparent; font-size: 0.75rem; }
   .attachment-remove { position: absolute; top: 0.15rem; right: 0.15rem; width: 36px; height: 36px; background: var(--color-canvas); color: var(--color-ink); font-size: 1.3rem; }
