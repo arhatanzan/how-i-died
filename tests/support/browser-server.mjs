@@ -7,6 +7,7 @@ Object.assign(process.env, {
   GITHUB_TOKEN: 'browser-test-token',
   GITHUB_OWNER: 'browser-test',
   GITHUB_REPO: 'journal',
+  GITHUB_DATA_BRANCH: 'browser-test-data',
   ADMIN_USERNAME: 'browser-test',
   ADMIN_PASSWORD: 'browser-test-only',
   AUTH_SECRET: 'browser-test-secret',
@@ -21,7 +22,11 @@ globalThis.fetch = async (input, options = {}) => {
   const respond = (data, status = 200) => new Response(JSON.stringify(data), {
     status, headers: { 'content-type': 'application/json' },
   });
-  if (url.pathname === '/repos/browser-test/journal/git/trees/HEAD') {
+  if (url.pathname === '/repos/browser-test/journal') return respond({ default_branch: 'main' });
+  if (decodeURIComponent(url.pathname) === '/repos/browser-test/journal/git/ref/heads/browser-test-data') {
+    return respond({ object: { sha: 'browser-data-sha' } });
+  }
+  if (url.pathname === '/repos/browser-test/journal/git/trees/browser-test-data') {
     return respond({ truncated: false, tree: Array.from(files.keys(), file => ({ path: file, type: 'blob' })) });
   }
   const prefix = '/repos/browser-test/journal/contents/';

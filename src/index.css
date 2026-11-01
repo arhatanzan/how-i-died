@@ -82,7 +82,7 @@
   .field::placeholder { color: var(--color-muted); }
   .label { display: block; margin-bottom: 0.4rem; color: var(--color-muted); font-size: 0.72rem; }
 
-  .site-header { padding: 2.8rem 1.25rem 1.2rem; }
+  .site-header { position: sticky; top: 0; z-index: 30; flex-shrink: 0; padding: 2.8rem 1.25rem 1.2rem; background: var(--color-canvas); }
   .site-header nav { position: relative; display: flex; align-items: center; justify-content: center; gap: clamp(1.3rem, 5vw, 5rem); }
   .navigation-links { display: flex; align-items: center; gap: clamp(1.3rem, 5vw, 5rem); }
   .site-header nav .menu-toggle { display: none; }
@@ -210,7 +210,7 @@
     margin-left: 0.3rem;
   }
 
-  .archive-toolbar { position: sticky; top: 0; z-index: 20; margin: 3rem 0 2rem; padding: 0.65rem 0; border-block: 1px solid var(--color-line); background: var(--color-canvas); box-shadow: 0 6px 12px -12px var(--color-ink); }
+  .archive-toolbar { position: sticky; top: var(--site-header-height, 0px); z-index: 20; margin: 3rem 0 2rem; padding: 0.65rem 0; border-block: 1px solid var(--color-line); background: var(--color-canvas); box-shadow: 0 6px 12px -12px var(--color-ink); }
   .archive-intro, .archive-browse { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
   .archive-title { display: flex; align-items: center; gap: 0.8rem; }
   .archive-sketch { width: 42px; height: 58px; flex: none; color: var(--color-ink); transform: rotate(-9deg); }
@@ -371,12 +371,11 @@
   .journal-note .editor-submit { width: 100%; }
 
   .journal-calendar { max-width: 680px; margin-bottom: 3rem; border: 1px solid var(--color-line); background: var(--color-canvas); }
-  .journal-page:not([data-view='masonry']) .archive-toolbar { position: relative; }
   .journal-split-layout { display: grid; grid-template-columns: minmax(270px, 1fr) minmax(0, 2fr); align-items: start; gap: 1.25rem; margin-bottom: 3rem; }
-  .journal-split-sidebar { position: sticky; top: 1rem; min-width: 0; max-height: calc(100dvh - 2rem); overflow-y: auto; }
+  .journal-split-sidebar { position: sticky; top: calc(var(--site-header-height, 0px) + var(--archive-toolbar-height, 0px) + 1rem); min-width: 0; max-height: calc(100dvh - var(--site-header-height, 0px) - var(--archive-toolbar-height, 0px) - 2rem); overflow-y: auto; }
   .journal-split-sidebar .journal-calendar { width: 100%; margin: 0; padding: 0.75rem; }
   .journal-split-sidebar .calendar-day { min-height: 32px; }
-  .journal-split-content { min-width: 0; max-height: calc(100dvh - 2rem); overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; }
+  .journal-split-content { min-width: 0; max-height: calc(100dvh - var(--site-header-height, 0px) - var(--archive-toolbar-height, 0px) - 2rem); overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; }
   .journal-timeline-nav { padding: 1rem; border: 1px solid var(--color-line); background: var(--color-canvas); }
   .journal-timeline-nav h2 { margin-bottom: 0.75rem; }
   .journal-timeline-nav button { display: flex; width: 100%; min-height: 44px; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0.75rem; text-align: left; }
@@ -465,7 +464,7 @@
   .navigation-links[data-open='true'] { display: flex; }
   .navigation-links > a, .navigation-links > button { padding: 0.5rem; }
   .site-header .navigation-links > a:hover, .site-header .navigation-links > button:hover { transform: none; background: var(--color-paper); }
-  .archive-toolbar { max-height: 70dvh; overflow-y: auto; }
+  .archive-toolbar { max-height: min(70dvh, calc(100dvh - var(--site-header-height, 0px))); overflow-y: auto; }
   .archive-intro { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.35rem 0.5rem; }
   .archive-title h2 { font-size: 1.3rem; }
   .archive-views { grid-column: 1 / -1; grid-row: 2; justify-self: start; }

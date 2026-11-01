@@ -1,6 +1,6 @@
 # How I Died
 
-A personal journal with an original animated bilingual nameplate, black-and-white garden illustration, and an open, editorial archive. Built with React, Tailwind CSS, Netlify Functions, Netlify Database (Postgres), and Netlify Blobs for files.
+A personal journal with an original animated bilingual nameplate, black-and-white garden illustration, and an open, editorial archive. Built with React, Tailwind CSS, Netlify Functions, and GitHub-backed persistent storage.
 
 ## Journal
 
@@ -24,21 +24,21 @@ Existing single-image notes remain readable without a migration. Uploaded files 
 
 ## Database and file storage
 
-Notes now use **Netlify Database / Postgres** through the server-only `@netlify/database` SDK. Netlify supplies `NETLIFY_DB_URL` for the appropriate deployment branch; credentials never go into the frontend. The `journal_notes` table stores one versioned JSONB document per stable note ID, preserving the portable note format and unknown legacy fields. Indexes support creation-date ordering and public-entry selection. Creates/deletes affect individual rows; edits lock their row in a transaction, preventing simultaneous updates from replacing an entire notes array.
+All notes, original uploaded bytes, and file metadata live in the configured **GitHub repository on a dedicated data branch**, not the deploy filesystem or browser localStorage. The default data branch is `journal-data`; set `GITHUB_DATA_BRANCH` to change it. Every content read, write, and deletion explicitly targets that branch. Code pushes and deploys do not replace its files. The repository owner and name come only from server environment variables.
 
-Uploaded bytes remain in **Netlify Blobs**: `images` retains legacy uploads and `media` holds upload manifests and binary chunks. Large files do not belong in database rows. Their ordered metadata and links stay with each note. File visibility checks, exports, and attachment cleanup all read notes from Postgres. Only display preferences use browser localStorage.
+Notes are individual JSON files at `data/journal/YYYY/MM/DD/<note-id>.json`. Legacy images and metadata live under `data/journal/attachments/images/`. Media manifests, ordered binary chunks, and chunk metadata live under `data/journal/attachments/media/`. Stable IDs, original filenames, content types, sizes, and SHA-256 hashes support portable exports and future database migration. A note keeps its stored path when its date changes; reads enumerate the branch tree rather than relying on a generated index or GitHub search. Only display preferences use browser localStorage.
 
 ### Setup and existing-note migration
 
-1. Link the intended Netlify site (`netlify link`) and install dependencies.
-2. Deploy with the `@netlify/database` dependency. Netlify provisions its managed database and applies SQL from `netlify/database/migrations` before publication. Verify database availability and plan/usage costs in the site's Database settings. The current SDK replaces the earlier `@netlify/neon` integration; do not copy production URLs into preview or browser configuration.
-3. Before switching, export/back up the existing journal and avoid editing notes from an older deployment during cutover.
-4. On the first note read/write in each running instance, the app checks a database migration marker. Once per database, it imports the original `journal` Blobs `notes` array in one transaction. Concurrent importers serialize using a transaction advisory lock. Existing database IDs are never overwritten, and the marker prevents deleted entries from being re-imported later. Empty imports also receive a marker. A failed import rolls back and can be retried.
-5. IDs, ISO timestamps, privacy, featured selection, attachment URLs, and extra fields survive the import. Legacy moods are normalized as before. The original Blobs notes are **left untouched**, but they are no longer updated after cutover: they are a migration source, not a synchronized backup.
+1. Use a **private repository** for storage: application-level privacy cannot hide private notes or media committed to a public repository. A separate private data repository is supported by setting its owner and name.
+2. Set `GITHUB_TOKEN`, `GITHUB_OWNER`, and `GITHUB_REPO` on the server. A fine-grained token needs repository Contents read/write permission, including branch creation. Never expose it through `VITE_` variables.
+3. Before deploying this change, take an export and pause writes from older deployments. On first access, a missing data branch is created from the storage repository's current default-branch commit, preserving all existing journal files there. An existing data branch is used as-is and is never reseeded on deployment. Files present only on your local disk must be backed up and transferred separately.
+4. Keep `GITHUB_DATA_BRANCH` stable across production deploys. It must not be the storage repository's default branch or any branch targeted by code pushes. Do not merge code into it, reset it, or delete it. Configure Netlify to deploy only the code branch, not commits to the data branch.
+5. Give local development and deploy previews a separate test repository or data branch so they cannot modify production notes. Changing the repository or branch selects a different archive; it does not migrate data automatically.
 
-Database outages fail explicitly; the app does **not** silently fall back to writing Blobs or present an empty journal. Check Netlify function logs if the schema, connection, or migration is unavailable. The migration/CRUD implementation is in `netlify/lib/database.mjs`; file access remains in `netlify/lib/media.mjs`.
+Storage outages fail explicitly rather than silently presenting an empty archive. Uploads fail when file metadata cannot be persisted. GitHub API limits, repository size limits, and write conflicts still apply; failed saves retain the draft for retry. This is file-backed storage, not a transactional database.
 
-Postgres is the primary store, **not a separate backup**. This does not enable Google Sheets synchronization. Check your Netlify/Neon plan's recovery/retention settings and keep independent exports including file bytes. Restoring database rows alone will not restore deleted media files.
+Git history is useful for recovery but is **not an independent backup**. Keep portable exports outside the repository. This change cannot recover files already removed before the data branch was created; restore those from existing Git history or backups before cutover. No Postgres database is currently provisioned or used by the app.
 
 ### Portable backups
 
@@ -73,25 +73,27 @@ Set these in Netlify’s environment-variable configuration:
 
 - `ADMIN_USERNAME`, `ADMIN_PASSWORD`: the keeper’s sign-in credentials.
 - `AUTH_SECRET`: a long random secret for signing session cookies.
+- `GITHUB_TOKEN`: server-only token with Contents read/write access to the private storage repository.
+- `GITHUB_OWNER`, `GITHUB_REPO`: the storage repository owner and name, with no account-specific defaults.
+- `GITHUB_DATA_BRANCH`: optional stable data branch name, defaults to `journal-data`.
 
-Connect this repository to Netlify. The build command is `npm run build`, the publish directory is `dist`, and function configuration is in `netlify.toml`. Notes persist in Postgres; media persists in Blobs. Let Netlify manage the database connection rather than adding a `VITE_` database secret.
+Connect this repository to Netlify. The build command is `npm run build`, the publish directory is `dist`, and function configuration is in `netlify.toml`. Notes and media persist on the configured GitHub data branch, independently of deploy output.
 
 ## Development
 
 ```bash
 npm install
-netlify database migrations apply
-netlify dev --offline
+npm run dev
 ```
 
-Use Netlify CLI 26+ and Node 20.12.2+ for database commands. Provide keeper credentials using local environment variables. Open **http://localhost:8888**, not Vite’s port 5173: API functions require Netlify dev. Netlify provides an isolated local Postgres-compatible database and local Blobs storage; local migration never reads production Blobs. `npm run dev:ui` starts only the interface and will display an archive connection error without the functions. `netlify database status` shows applied/pending schema migrations; do not use database-reset commands on a journal you need to preserve.
+Provide keeper and GitHub credentials using local environment variables, selecting a separate test repository or branch. Open **http://localhost:8888**, not Vite's port 5173: API functions require Netlify dev. Storage requires GitHub connectivity; there is no offline production-data fallback. `npm run dev:ui` starts only the interface and will display an archive connection error without the functions.
 
 ```bash
 npm test
 npm run build
 ```
 
-Tests execute the actual SQL schema and repository against isolated PGlite Postgres instances (no cloud credentials). They cover note CRUD and transaction rollback, legacy imports and reruns, privacy, attachments, archive selection, multi-chunk uploads, cleanup, explicit database errors, and portable exports with file integrity checks. Tracker, finance, and public-statistics features and endpoints have been removed; previously stored tracker data is not deleted.
+The focused GitHub integration suite runs without cloud credentials: `node --test tests/github-notes.test.js`. It covers branch initialization, preservation across code pushes, note CRUD, privacy, attachments, original byte integrity, metadata failures, and complete portable exports. Some older tests still reference removed local database modules and need migration before the full `npm test` suite can pass.
 
 ## Database Export & Backup
 
@@ -114,16 +116,14 @@ Access the admin panel at `/admin` and use the "Export Database" button to downl
 ```bash
 # Export as PostgreSQL
 curl http://localhost:8888/api/admin/export-db/notes/postgres \
-  -H "x-requested-with: how-i-died" \
+  -H "x-requested-with: journal-app" \
   > journal-backup.sql
 
 # Export as MongoDB
 curl http://localhost:8888/api/admin/export-db/notes/mongodb \
-  -H "x-requested-with: how-i-died" \
+  -H "x-requested-with: journal-app" \
   > journal-backup.json
 ```
 
 ### GitHub Permanent Storage
-All notes can be automatically stored in your GitHub repository for permanent backup and version control. Set `GITHUB_TOKEN`, `GITHUB_OWNER`, and `GITHUB_REPO` environment variables to enable.
-
-See [SCHEMA.md](./SCHEMA.md) for complete database schema and [REFACTORING.md](./REFACTORING.md) for migration guide.
+GitHub is the primary store, not an optional backup. The database-format exports above contain note records only; use `npm run export` for a complete migration bundle including original file bytes. The manual admin endpoints require an authenticated keeper session cookie in addition to the request header.

@@ -1,11 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 test('GitHub-backed notes and attachments work without search indexing', async (t) => {
   const environment = {
     GITHUB_TOKEN: 'test-token',
     GITHUB_OWNER: 'test-owner',
     GITHUB_REPO: 'test-journal',
+    GITHUB_DATA_BRANCH: 'persistent-test-data',
     ADMIN_USERNAME: 'test-keeper',
     ADMIN_PASSWORD: 'local-test-only',
   };
@@ -18,10 +22,21 @@ test('GitHub-backed notes and attachments work without search indexing', async (
     }
   });
 
+  const codeFiles = new Map();
+  const existingId = '56789012-1234-1234-1234-123456789abc';
+  const existingImage = '67890123-1234-1234-1234-123456789abc';
+  codeFiles.set(`data/journal/2025/01/01/${existingId}.json`, Buffer.from(JSON.stringify({
+    id: existingId, text: 'Saved before branch isolation', isPublic: false,
+    createdAt: '2025-01-01T00:00:00.000Z', imageUrl: `/api/images/${existingImage}`,
+  })).toString('base64'));
+  codeFiles.set(`data/journal/attachments/images/${existingImage}`, Buffer.from([137, 80, 78, 71]).toString('base64'));
   const files = new Map();
   const unexpected = [];
   let unavailable = false;
   let deletionUnavailable = false;
+  let metadataUnavailable = false;
+  let dataBranchExists = false;
+  let branchCreations = 0;
   t.mock.method(globalThis, 'fetch', async (input, options) => {
     const url = new URL(typeof input === 'string' ? input : input.url);
     const method = options?.method || 'GET';
@@ -30,7 +45,23 @@ test('GitHub-backed notes and attachments work without search indexing', async (
       status,
       headers: { 'content-type': 'application/json' },
     });
-    if (url.pathname === '/repos/test-owner/test-journal/git/trees/HEAD') {
+    if (url.pathname === '/repos/test-owner/test-journal') {
+      return respond({ default_branch: 'main' });
+    }
+    if (decodeURIComponent(url.pathname) === '/repos/test-owner/test-journal/git/ref/heads/persistent-test-data') {
+      return dataBranchExists ? respond({ object: { sha: 'data-sha' } }) : respond({ message: 'Not Found' }, 404);
+    }
+    if (decodeURIComponent(url.pathname) === '/repos/test-owner/test-journal/git/ref/heads/main') {
+      return respond({ object: { sha: 'existing-code-sha' } });
+    }
+    if (url.pathname === '/repos/test-owner/test-journal/git/refs' && method === 'POST') {
+      assert.deepEqual(JSON.parse(options.body), { ref: 'refs/heads/persistent-test-data', sha: 'existing-code-sha' });
+      dataBranchExists = true;
+      branchCreations++;
+      for (const [path, content] of codeFiles) files.set(path, content);
+      return respond({ ref: 'refs/heads/persistent-test-data' }, 201);
+    }
+    if (url.pathname === '/repos/test-owner/test-journal/git/trees/persistent-test-data') {
       if (unavailable) return respond({ message: 'Storage unavailable' }, 403);
       return respond({ truncated: false, tree: [
         ...Array.from(files.keys(), path => ({ path, type: 'blob' })),
@@ -40,7 +71,10 @@ test('GitHub-backed notes and attachments work without search indexing', async (
     }
     if (url.pathname.startsWith(prefix)) {
       const path = decodeURIComponent(url.pathname.slice(prefix.length));
+      if (method === 'GET') assert.equal(url.searchParams.get('ref'), 'persistent-test-data');
+      else assert.equal(JSON.parse(options.body).branch, 'persistent-test-data');
       if (method === 'PUT') {
+        if (metadataUnavailable && path.endsWith('.meta.json')) return respond({ message: 'Metadata unavailable' }, 403);
         const body = JSON.parse(options.body);
         files.set(path, body.content);
         return respond({ content: { path }, commit: { html_url: 'https://example.org/commit' } });
@@ -94,6 +128,42 @@ test('GitHub-backed notes and attachments work without search indexing', async (
   assert.equal(publicNotes[0].text, saved.text);
   assert.equal(publicNotes[0].isPublic, true);
   assert.equal((await request('PATCH', { isPublic: true }, 'missing')).status, 404);
+
+  await t.test('code pushes do not recreate or overwrite the persistent data branch', async () => {
+    codeFiles.clear();
+    const { listNotes } = await import('../netlify/lib/github-storage.mjs?redeploy');
+    const notes = await listNotes();
+    assert.equal(notes.find(note => note.id === saved.id).text, saved.text);
+    assert.equal(notes.find(note => note.id === existingId).text, 'Saved before branch isolation');
+    const { imageStore } = await import('../netlify/lib/store-file-db.mjs');
+    assert.deepEqual(Buffer.from(await imageStore().get(existingImage, { type: 'arrayBuffer' })), Buffer.from([137, 80, 78, 71]));
+    assert.equal(branchCreations, 1);
+    assert.equal((await request('DELETE', undefined, existingId)).status, 200);
+  });
+
+  await t.test('the code default branch cannot be selected as the data branch', async () => {
+    process.env.GITHUB_DATA_BRANCH = 'main';
+    try {
+      const { listNotes } = await import('../netlify/lib/github-storage.mjs?unsafe-branch');
+      await assert.rejects(listNotes(), /must differ/);
+    } finally {
+      process.env.GITHUB_DATA_BRANCH = environment.GITHUB_DATA_BRANCH;
+    }
+  });
+
+  await t.test('uploads fail explicitly when attachment metadata cannot be saved', async () => {
+    const { imageStore, mediaStore } = await import('../netlify/lib/store-file-db.mjs');
+    const key = '45678901-1234-1234-1234-123456789abc';
+    metadataUnavailable = true;
+    try {
+      await assert.rejects(imageStore().set(key, new Uint8Array([1]), { metadata: { contentType: 'image/png' } }), /image metadata/);
+      await assert.rejects(mediaStore().set(`${key}/parts/0`, new Uint8Array([1]), { metadata: { size: 1 } }), /media part metadata/);
+    } finally {
+      metadataUnavailable = false;
+      files.delete(`data/journal/attachments/images/${key}`);
+      files.delete(`data/journal/attachments/media/${key}-part-0`);
+    }
+  });
 
   await t.test('note validation and write authorization reject invalid mutations', async () => {
     for (const method of ['POST', 'PATCH', 'DELETE']) {
@@ -250,6 +320,34 @@ test('GitHub-backed notes and attachments work without search indexing', async (
     assert.deepEqual(backup.notes.find(item => item.id === note.id).attachments, note.attachments);
     assert.equal(backup.assets.find(item => item.id === upload.id).size, bytes.length);
     assert.equal(backup.assets.find(item => item.id === upload.id).sha256.length, 1);
+    const { exportJournal } = await import('../scripts/export-journal.mjs');
+    const root = await mkdtemp(join(tmpdir(), 'journal-export-'));
+    try {
+      const fetcher = async (input, options) => {
+        const url = new URL(input);
+        if (url.pathname === '/api/login') return new Response('{}', { headers: { 'set-cookie': `${cookie}; HttpOnly` } });
+        if (url.pathname === '/api/export') return exportHandler(new Request(url, options));
+        const match = url.pathname.match(/^\/api\/media\/([^/]+)\/parts\/(\d+)$/);
+        assert.ok(match, `Unexpected export path: ${url.pathname}`);
+        return mediaHandler(new Request(url, options), { params: { id: match[1], part: match[2] } });
+      };
+      const directory = join(root, 'backup');
+      assert.deepEqual(await exportJournal({ baseUrl: 'http://localhost', directory, username: 'test-keeper', password: 'local-test-only', fetcher }), { notes: 1, assets: 1 });
+      assert.deepEqual(await readFile(join(directory, 'assets', upload.id)), bytes);
+      const portable = JSON.parse(await readFile(join(directory, 'journal.json'), 'utf8'));
+      assert.equal(portable.schemaVersion, 1);
+      assert.equal(portable.notes[0].id, note.id);
+      assert.deepEqual(portable.notes[0].attachments, note.attachments);
+      assert.equal(portable.assets[0].path, `assets/${upload.id}`);
+      const corruptDirectory = join(root, 'corrupt-backup');
+      await assert.rejects(exportJournal({ baseUrl: 'http://localhost', directory: corruptDirectory, username: 'test-keeper', password: 'local-test-only', fetcher: async (input, options) => {
+        if (new URL(input).pathname.includes('/parts/')) return new Response('corrupt bytes');
+        return fetcher(input, options);
+      } }), /Integrity check failed/);
+      await assert.rejects(readFile(join(corruptDirectory, 'journal.json')), { code: 'ENOENT' });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
     assert.equal((await media('GET', undefined, { id: upload.id }, false)).status, 404);
     assert.equal((await media('DELETE', undefined, { id: upload.id })).status, 409);
     assert.equal((await request('PATCH', { isPublic: true }, note.id)).status, 200);

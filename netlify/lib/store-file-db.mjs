@@ -1,10 +1,3 @@
-/**
- * Store adapter that persists all files
- * - Notes: Stored in .data/ directory (persists across deployments)
- * - Media: Stored in GitHub repository via storeAttachment() API
- * - Images: Stored in GitHub repository via storeAttachment() API
- */
-
 import { readTable, appendRecord, updateRecord, deleteRecord, getRecord } from './blob-db.mjs';
 import { storeAttachment, loadAttachment, storeAttachmentMetadata, loadAttachmentMetadata, deleteAttachment } from './github-storage.mjs';
 
@@ -104,7 +97,8 @@ export function imageStore() {
       }
       
       if (options.metadata) {
-        await storeAttachmentMetadata(key, 'images', options.metadata);
+        const stored = await storeAttachmentMetadata(key, 'images', options.metadata);
+        if (!stored) throw new Error('Failed to store image metadata in GitHub');
       }
     },
 
@@ -223,7 +217,8 @@ export function mediaStore() {
         // Store metadata alongside the binary data
         if (options.metadata) {
           console.log('set: storing media part metadata', { attachmentId, metadata: options.metadata });
-          await storeAttachmentMetadata(attachmentId, 'media', options.metadata);
+          const stored = await storeAttachmentMetadata(attachmentId, 'media', options.metadata);
+          if (!stored) throw new Error('Failed to store media part metadata in GitHub');
         }
       }
     },

@@ -7,12 +7,42 @@ import { mediaId } from '../../shared/media.js';
  */
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const GITHUB_OWNER = process.env.GITHUB_OWNER || 'arhatanzan';
+const GITHUB_OWNER = process.env.GITHUB_OWNER;
 // Repository name from environment - must be set on Netlify
 const GITHUB_REPO = process.env.GITHUB_REPO;
+const DATA_BRANCH = process.env.GITHUB_DATA_BRANCH || 'journal-data';
 const DATA_FOLDER = 'data/journal';
 
 let octokit = null;
+let dataBranchReady = null;
+
+async function ensureDataBranch(client) {
+  if (!dataBranchReady) {
+    dataBranchReady = (async () => {
+      const location = { owner: GITHUB_OWNER, repo: GITHUB_REPO };
+      const repository = await client.repos.get(location);
+      if (DATA_BRANCH === repository.data.default_branch) {
+        throw new Error('GITHUB_DATA_BRANCH must differ from the code repository default branch.');
+      }
+      try {
+        await client.git.getRef({ ...location, ref: `heads/${DATA_BRANCH}` });
+      } catch (error) {
+        if (error.status !== 404) throw error;
+        const source = await client.git.getRef({ ...location, ref: `heads/${repository.data.default_branch}` });
+        try {
+          await client.git.createRef({ ...location, ref: `refs/heads/${DATA_BRANCH}`, sha: source.data.object.sha });
+        } catch (creationError) {
+          if (creationError.status !== 422) throw creationError;
+          await client.git.getRef({ ...location, ref: `heads/${DATA_BRANCH}` });
+        }
+      }
+    })().catch(error => {
+      dataBranchReady = null;
+      throw error;
+    });
+  }
+  await dataBranchReady;
+}
 
 function getOctokit() {
   if (!octokit) {
@@ -22,7 +52,20 @@ function getOctokit() {
     if (!GITHUB_REPO) {
       throw new Error('GITHUB_REPO environment variable not set.');
     }
+    if (!GITHUB_OWNER) {
+      throw new Error('GITHUB_OWNER environment variable not set.');
+    }
     octokit = new Octokit({ auth: GITHUB_TOKEN });
+    octokit.hook.before('request', async options => {
+      if (options.url.includes('/contents/')) {
+        await ensureDataBranch(octokit);
+        if (options.method === 'GET') options.ref = DATA_BRANCH;
+        else options.branch = DATA_BRANCH;
+      } else if (options.url.includes('/git/trees/')) {
+        await ensureDataBranch(octokit);
+        options.tree_sha = DATA_BRANCH;
+      }
+    });
   }
   return octokit;
 }
@@ -421,7 +464,7 @@ export function getNoteGitHubPath(noteId, createdAt) {
   const path = `${DATA_FOLDER}/${year}/${month}/${day}/${noteId}.json`;
   return {
     path,
-    url: `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/blob/main/${path}`,
+    url: `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/blob/${DATA_BRANCH}/${path}`,
   };
 }
 

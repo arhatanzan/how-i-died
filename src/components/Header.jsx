@@ -11,11 +11,24 @@ export default function Header({ isJournal }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButton = useRef(null);
   const navigation = useRef(null);
+  const header = useRef(null);
   const [theme, setTheme] = useState(() => {
     if (typeof window === 'undefined') return 'dark';
     const saved = localStorage.getItem('theme');
     return saved === 'light' ? 'light' : 'dark';
   });
+
+  useEffect(() => {
+    const element = header.current;
+    const updateHeight = () => document.documentElement.style.setProperty('--site-header-height', `${element.getBoundingClientRect().height}px`);
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty('--site-header-height');
+    };
+  }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -58,7 +71,7 @@ export default function Header({ isJournal }) {
   }
 
   return (
-    <header className="site-header">
+    <header ref={header} className="site-header">
       <nav ref={navigation} aria-label="Main navigation">
         <a href="/" aria-current={!isJournal ? 'page' : undefined}>Arhat Anzan</a>
         <button ref={menuButton} className="menu-toggle" type="button" aria-label={menuOpen ? 'Close menu' : 'Open menu'} aria-expanded={menuOpen} aria-controls="navigation-links" onClick={() => setMenuOpen((current) => !current)}>

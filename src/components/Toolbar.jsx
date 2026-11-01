@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { RotateCcw, Search, SlidersHorizontal } from 'lucide-react';
 import { MONTHS, daysInMonth } from '../lib/dates';
 
@@ -16,6 +16,20 @@ const SORTS = [
 
 export default function Toolbar({ filters, setFilters, total, shown, years, onDateChange }) {
   const [expanded, setExpanded] = useState(false);
+  const toolbar = useRef(null);
+  useEffect(() => {
+    const element = toolbar.current;
+    const journal = element.closest('.journal-page');
+    if (!journal) return;
+    const updateHeight = () => journal.style.setProperty('--archive-toolbar-height', `${element.getBoundingClientRect().height}px`);
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      journal.style.removeProperty('--archive-toolbar-height');
+    };
+  }, []);
   const activeCount = [filters.search, filters.year, filters.month, filters.day].filter(Boolean).length;
   const set = (patch) => setFilters((f) => ({ ...f, ...patch }));
   const selectedDay = filters.day?.slice(-2).replace(/^0/, '') || '';
@@ -24,7 +38,7 @@ export default function Toolbar({ filters, setFilters, total, shown, years, onDa
     : 0;
 
   return (
-    <section id="journal-filters" className="archive-toolbar" aria-label="Archive filters" data-expanded={expanded}>
+    <section ref={toolbar} id="journal-filters" className="archive-toolbar" aria-label="Archive filters" data-expanded={expanded}>
       <div className="archive-intro">
         <div className="archive-title">
           <div>
