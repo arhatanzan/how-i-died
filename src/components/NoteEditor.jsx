@@ -7,6 +7,7 @@ import MediaCapture from './MediaCapture';
 import { useMediaUrl } from '../lib/useMediaUrl';
 import MoodPicker from './MoodPicker';
 import MediaPlayer from './MediaPlayer';
+import NoteContent from './NoteContent';
 
 function DraftAttachment({ item }) {
   const [preview, setPreview] = useState(item.url);
@@ -51,14 +52,16 @@ export default function NoteEditor({ note, onSave, onCancel }) {
   const [error, setError] = useState('');
   const [dragging, setDragging] = useState(false);
   const [capture, setCapture] = useState(null);
+  const [previewing, setPreviewing] = useState(false);
   const fileInput = useRef(null);
   const textarea = useRef(null);
 
   useEffect(() => {
     const area = textarea.current;
+    if (!area) return;
     area.style.height = 'auto';
     area.style.height = `${Math.max(area.scrollHeight, 120)}px`;
-  }, [text]);
+  }, [text, previewing]);
 
   function applyInlineFormat(prefix, suffix = prefix) {
     const area = textarea.current;
@@ -106,6 +109,24 @@ export default function NoteEditor({ note, onSave, onCancel }) {
       area.focus();
       area.setSelectionRange(...cursor);
     });
+  }
+
+  function handleEditorKeyDown(event) {
+    if ((event.metaKey || event.ctrlKey) && !event.altKey) {
+      const key = event.key.toLowerCase();
+      const formats = { b: ['**', '**'], i: ['*', '*'], u: ['++', '++'] };
+      if (formats[key]) {
+        event.preventDefault();
+        applyInlineFormat(...formats[key]);
+        return;
+      }
+      if (key === 'x' && event.shiftKey) {
+        event.preventDefault();
+        applyInlineFormat('~~', '~~');
+        return;
+      }
+      if (event.key === 'Enter') event.currentTarget.form.requestSubmit();
+    }
   }
 
   function addFiles(files) {
@@ -215,26 +236,36 @@ export default function NoteEditor({ note, onSave, onCancel }) {
       <fieldset disabled={busy}>
         <legend className="editor-eyebrow">{note ? 'Tend this page' : 'A moment to keep'}</legend>
         <label className="sr-only" htmlFor={`${id}-text`}>Note</label>
-        <div className="note-formatting" role="toolbar" aria-label="Text formatting">
-          {[
-            { label: 'Bold', symbol: 'B', prefix: '**', suffix: '**', style: 'format-bold' },
-            { label: 'Italic', symbol: 'I', prefix: '*', suffix: '*', style: 'format-italic' },
-            { label: 'Underline', symbol: 'U', prefix: '++', suffix: '++', style: 'format-underline' },
-            { label: 'Strikethrough', symbol: 'S', prefix: '~~', suffix: '~~', style: 'format-strike' },
-          ].map((format) => (
-            <button key={format.label} type="button" className={format.style} aria-label={format.label} title={format.label} onMouseDown={(event) => event.preventDefault()} onClick={() => applyInlineFormat(format.prefix, format.suffix)}>
-              {format.symbol}
-            </button>
-          ))}
-          <span className="formatting-divider" aria-hidden="true" />
-          <button type="button" aria-label="Heading" title="Heading" onMouseDown={(event) => event.preventDefault()} onClick={() => applyLineFormat('## ')}>H</button>
-          <button type="button" aria-label="Bulleted list" title="Bulleted list" onMouseDown={(event) => event.preventDefault()} onClick={() => applyLineFormat('- ')}>•</button>
-          <button type="button" aria-label="Numbered list" title="Numbered list" onMouseDown={(event) => event.preventDefault()} onClick={() => applyLineFormat('1. ')}>1.</button>
-          <button type="button" aria-label="Quote" title="Quote" onMouseDown={(event) => event.preventDefault()} onClick={() => applyLineFormat('> ')}>“</button>
+        <div className="editor-mode" role="group" aria-label="Note editor view">
+          <button type="button" aria-pressed={!previewing} onClick={() => setPreviewing(false)}>Write</button>
+          <button type="button" aria-pressed={previewing} onClick={() => setPreviewing(true)}>Preview</button>
         </div>
-        <textarea id={`${id}-text`} ref={textarea} value={text} onChange={(event) => setText(event.target.value)} placeholder="A thought, a small joy, something you don’t want to forget…" maxLength={20000} onKeyDown={(event) => {
-          if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.form.requestSubmit();
-        }} />
+        {previewing ? (
+          <div className="note-editor-preview note-copy" aria-label="Formatted note preview">
+            {text ? <NoteContent text={text} /> : <p className="editor-preview-empty">Nothing to preview yet.</p>}
+          </div>
+        ) : (
+          <>
+            <div className="note-formatting" role="toolbar" aria-label="Text formatting">
+              {[
+                { label: 'Bold', symbol: 'B', prefix: '**', suffix: '**', style: 'format-bold', shortcut: 'Ctrl+B' },
+                { label: 'Italic', symbol: 'I', prefix: '*', suffix: '*', style: 'format-italic', shortcut: 'Ctrl+I' },
+                { label: 'Underline', symbol: 'U', prefix: '++', suffix: '++', style: 'format-underline', shortcut: 'Ctrl+U' },
+                { label: 'Strikethrough', symbol: 'S', prefix: '~~', suffix: '~~', style: 'format-strike', shortcut: 'Ctrl+Shift+X' },
+              ].map((format) => (
+                <button key={format.label} type="button" className={format.style} aria-label={format.label} title={`${format.label} (${format.shortcut})`} onMouseDown={(event) => event.preventDefault()} onClick={() => applyInlineFormat(format.prefix, format.suffix)}>
+                  {format.symbol}
+                </button>
+              ))}
+              <span className="formatting-divider" aria-hidden="true" />
+              <button type="button" aria-label="Heading" title="Heading" onMouseDown={(event) => event.preventDefault()} onClick={() => applyLineFormat('## ')}>H</button>
+              <button type="button" aria-label="Bulleted list" title="Bulleted list" onMouseDown={(event) => event.preventDefault()} onClick={() => applyLineFormat('- ')}>•</button>
+              <button type="button" aria-label="Numbered list" title="Numbered list" onMouseDown={(event) => event.preventDefault()} onClick={() => applyLineFormat('1. ')}>1.</button>
+              <button type="button" aria-label="Quote" title="Quote" onMouseDown={(event) => event.preventDefault()} onClick={() => applyLineFormat('> ')}>“</button>
+            </div>
+            <textarea id={`${id}-text`} ref={textarea} value={text} onChange={(event) => setText(event.target.value)} placeholder="A thought, a small joy, something you don’t want to forget…" maxLength={20000} onKeyDown={handleEditorKeyDown} />
+          </>
+        )}
         {attachments.length > 0 && (
           <div className="draft-attachments">
             {attachments.map((item, index) => (
