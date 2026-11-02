@@ -4,50 +4,79 @@ import { useAuth } from './auth';
 
 export function useNotes() {
   const { authenticated, loading: authLoading } = useAuth();
-  const [notes, setNotes] = useState([]);
-  const [loadedFor, setLoadedFor] = useState(null);
-  const [status, setStatus] = useState('loading');
-  const [error, setError] = useState('');
-  const [requestId, setRequestId] = useState(0);
-  const [freshIds, setFreshIds] = useState(() => new Set());
+  const [state, setState] = useState({
+    notes: [],
+    status: 'loading',
+    error: '',
+    freshIds: new Set(),
+    loadedFor: null,
+    requestId: 0,
+  });
 
   useEffect(() => {
     if (authLoading) return;
+
     let alive = true;
-    setNotes([]);
-    setLoadedFor(authenticated);
-    setStatus('loading');
-    setError('');
+    setState((prev) => ({
+      ...prev,
+      notes: [],
+      loadedFor: authenticated,
+      status: 'loading',
+      error: '',
+    }));
+
     api.listNotes()
       .then((data) => {
         if (!Array.isArray(data)) throw new Error('The archive returned an invalid response.');
         if (!alive) return;
-        setNotes(data);
-        setStatus('ready');
+        setState((prev) => ({ ...prev, notes: data, status: 'ready' }));
       })
       .catch((err) => {
         if (!alive) return;
-        setError(err.message);
-        setStatus('error');
+        setState((prev) => ({ ...prev, error: err.message, status: 'error' }));
       });
-    return () => { alive = false; };
-  }, [authenticated, authLoading, requestId]);
 
-  const retry = useCallback(() => setRequestId((id) => id + 1), []);
-  const add = useCallback((note) => {
-    setFreshIds((ids) => new Set(ids).add(note.id));
-    setNotes((list) => [note, ...list]);
+    return () => { alive = false; };
+  }, [authenticated, authLoading, state.requestId]);
+
+  const retry = useCallback(() => {
+    setState((prev) => ({ ...prev, requestId: prev.requestId + 1 }));
   }, []);
+
+  const add = useCallback((note) => {
+    setState((prev) => ({
+      ...prev,
+      freshIds: new Set(prev.freshIds).add(note.id),
+      notes: [note, ...prev.notes],
+    }));
+  }, []);
+
   const update = useCallback(async (id, patch) => {
     const saved = await api.updateNote(id, patch);
-    setNotes((list) => list.map((note) => note.id === id ? saved : note));
+    setState((prev) => ({
+      ...prev,
+      notes: prev.notes.map((note) => (note.id === id ? saved : note)),
+    }));
     return saved;
   }, []);
+
   const remove = useCallback(async (id) => {
     await api.deleteNote(id);
-    setNotes((list) => list.filter((note) => note.id !== id));
+    setState((prev) => ({
+      ...prev,
+      notes: prev.notes.filter((note) => note.id !== id),
+    }));
   }, []);
 
-  const sessionChanged = loadedFor !== authenticated;
-  return { notes: sessionChanged ? [] : notes, status: authLoading || sessionChanged ? 'loading' : status, error, retry, freshIds, add, update, remove };
+  const sessionChanged = state.loadedFor !== authenticated;
+  return {
+    notes: sessionChanged ? [] : state.notes,
+    status: authLoading || sessionChanged ? 'loading' : state.status,
+    error: state.error,
+    retry,
+    freshIds: state.freshIds,
+    add,
+    update,
+    remove,
+  };
 }

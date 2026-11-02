@@ -4,12 +4,17 @@ import { api } from './api';
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [state, setState] = useState({ loading: true, authenticated: false, username: null, configured: true });
+  const [state, setState] = useState({
+    loading: true,
+    authenticated: false,
+    username: null,
+    configured: true,
+  });
 
   const refresh = useCallback(async () => {
     try {
-      const s = await api.session();
-      setState({ loading: false, ...s });
+      const session = await api.session();
+      setState({ loading: false, ...session });
     } catch {
       setState((prev) => ({ ...prev, loading: false, authenticated: false }));
     }
@@ -20,8 +25,8 @@ export function AuthProvider({ children }) {
   }, [refresh]);
 
   const login = useCallback(async (username, password) => {
-    const s = await api.login(username, password);
-    setState((prev) => ({ ...prev, loading: false, ...s }));
+    const session = await api.login(username, password);
+    setState((prev) => ({ ...prev, loading: false, ...session }));
   }, []);
 
   const logout = useCallback(async () => {
@@ -29,7 +34,11 @@ export function AuthProvider({ children }) {
     setState((prev) => ({ ...prev, authenticated: false, username: null }));
   }, []);
 
-  const value = useMemo(() => ({ ...state, login, logout, refresh }), [state, login, logout, refresh]);
+  const value = useMemo(
+    () => ({ ...state, login, logout, refresh }),
+    [state, login, logout, refresh]
+  );
+
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

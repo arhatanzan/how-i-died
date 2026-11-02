@@ -1,39 +1,35 @@
 import { useEffect, useRef, useState } from 'react';
-import { RotateCcw, Search, SlidersHorizontal } from 'lucide-react';
+import { SlidersHorizontal } from 'lucide-react';
 import { MONTHS, daysInMonth } from '../lib/dates';
-
-const VIEWS = [
-  { key: 'masonry', label: 'Grid' },
-  { key: 'timeline', label: 'Timeline' },
-  { key: 'calendar', label: 'Calendar' },
-];
-
-const SORTS = [
-  { key: 'newest', label: 'Newest first' },
-  { key: 'oldest', label: 'Oldest first' },
-  { key: 'longest', label: 'Longest first' },
-];
+import { NOTE_VIEW_TYPES, NOTE_SORT_TYPES } from '../lib/constants';
 
 export default function Toolbar({ filters, setFilters, total, shown, years, onDateChange }) {
   const [expanded, setExpanded] = useState(false);
   const toolbar = useRef(null);
+
   useEffect(() => {
     const element = toolbar.current;
     const journal = element.closest('.journal-page');
     if (!journal) return;
-    const updateHeight = () => journal.style.setProperty('--archive-toolbar-height', `${element.getBoundingClientRect().height}px`);
+
+    const updateHeight = () => {
+      journal.style.setProperty('--archive-toolbar-height', `${element.getBoundingClientRect().height}px`);
+    };
+
     updateHeight();
     const observer = new ResizeObserver(updateHeight);
     observer.observe(element);
+
     return () => {
       observer.disconnect();
       journal.style.removeProperty('--archive-toolbar-height');
     };
   }, []);
-  const activeCount = [filters.search, filters.year, filters.month, filters.day].filter(Boolean).length;
-  const set = (patch) => setFilters((f) => ({ ...f, ...patch }));
+
+  const activeFilterCount = [filters.search, filters.year, filters.month, filters.day].filter(Boolean).length;
+  const setFilters_ = (patch) => setFilters((f) => ({ ...f, ...patch }));
   const selectedDay = filters.day?.slice(-2).replace(/^0/, '') || '';
-  const days = filters.year && filters.month
+  const daysAvailable = filters.year && filters.month
     ? daysInMonth(Number(filters.year), Number(filters.month) - 1)
     : 0;
 
@@ -47,8 +43,8 @@ export default function Toolbar({ filters, setFilters, total, shown, years, onDa
           </div>
         </div>
         <div className="archive-views" role="group" aria-label="View">
-          {VIEWS.map((v) => (
-            <button key={v.key} type="button" aria-pressed={filters.view === v.key} onClick={() => set({ view: v.key })}>
+          {NOTE_VIEW_TYPES.map((v) => (
+            <button key={v.key} type="button" aria-pressed={filters.view === v.key} onClick={() => setFilters_({ view: v.key })}>
               {v.label}
               <svg viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true">
                 <path d="M2 5C25 1 57 2 98 4M8 7C39 4 65 5 88 6" />
@@ -58,13 +54,13 @@ export default function Toolbar({ filters, setFilters, total, shown, years, onDa
         </div>
         <label className="archive-order">
           <span className="sr-only">Sort by</span>
-          <select value={filters.sort} onChange={(e) => set({ sort: e.target.value })} className="archive-select" aria-label="Sort">
-            {SORTS.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
+          <select value={filters.sort} onChange={(e) => setFilters_({ sort: e.target.value })} className="archive-select" aria-label="Sort">
+            {NOTE_SORT_TYPES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
           </select>
         </label>
         <button type="button" className="archive-filter-toggle" aria-expanded={expanded} aria-controls="archive-filter-controls" onClick={() => setExpanded((current) => !current)}>
           <SlidersHorizontal size={16} />
-          <span>Filters{activeCount ? ` (${activeCount})` : ''}</span>
+          <span>Filters{activeFilterCount ? ` (${activeFilterCount})` : ''}</span>
         </button>
       </div>
       <div id="archive-filter-controls" className="archive-filters-container">
@@ -107,7 +103,7 @@ export default function Toolbar({ filters, setFilters, total, shown, years, onDa
                 <select
                   className="archive-select"
                   value={selectedDay}
-                  disabled={!filters.year || !days}
+                  disabled={!filters.year || !daysAvailable}
                   onChange={(e) => {
                     const day = e.target.value
                       ? `${filters.year}-${filters.month}-${e.target.value.padStart(2, '0')}`
@@ -117,7 +113,7 @@ export default function Toolbar({ filters, setFilters, total, shown, years, onDa
                   aria-label="Filter by day"
                 >
                   <option value="">Any day</option>
-                  {Array.from({ length: days }, (_, index) => index + 1).map((day) => (
+                  {Array.from({ length: daysAvailable }, (_, index) => index + 1).map((day) => (
                     <option key={day} value={day}>{day}</option>
                   ))}
                 </select>
@@ -129,10 +125,9 @@ export default function Toolbar({ filters, setFilters, total, shown, years, onDa
           <div className="archive-search">
             <label>
               <span className="sr-only">Search notes</span>
-              <Search size={16} aria-hidden="true" />
-              <input type="search" value={filters.search} onChange={(event) => set({ search: event.target.value })} placeholder="Search entries" />
+              <input type="search" value={filters.search} onChange={(event) => setFilters_({ search: event.target.value })} placeholder="Search entries" />
             </label>
-            <button type="button" className="archive-reset" disabled={!activeCount} aria-label="Clear filters" title="Clear filters" onClick={() => set({ search: '', year: '', month: '', day: null })}><RotateCcw size={16} /></button>
+            <button type="button" className="archive-reset" disabled={!activeFilterCount} aria-label="Clear filters" title="Clear filters" onClick={() => setFilters_({ search: '', year: '', month: '', day: null })}>↻</button>
           </div>
         </div>
       </div>

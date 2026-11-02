@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { MAX_FILE_BYTES, MAX_RECORDING_SECONDS } from '../../shared/media.js';
 import { createVideoRecordingStream } from '../lib/capture.js';
+import MediaPlayer from './MediaPlayer';
 
 const clock = (seconds) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
@@ -11,6 +12,7 @@ export default function MediaCapture({ mode, onAdd, onClose }) {
   const recorder = useRef(null);
   const microphone = useRef([]);
   const recordingOutput = useRef(null);
+  const recordedMilliseconds = useRef(0);
   const active = useRef(true);
   const [camera, setCamera] = useState(null);
   const facingMode = camera || 'user';
@@ -20,6 +22,7 @@ export default function MediaCapture({ mode, onAdd, onClose }) {
   const [seconds, setSeconds] = useState(0);
   const [result, setResult] = useState(null);
   const [resultUrl, setResultUrl] = useState('');
+  const isRecording = status === 'recording' || status === 'paused';
 
   useEffect(() => {
     active.current = true;
@@ -28,7 +31,7 @@ export default function MediaCapture({ mode, onAdd, onClose }) {
     element.showModal();
     return () => {
       active.current = false;
-      if (recorder.current?.state === 'recording') recorder.current.stop();
+      if (recorder.current && recorder.current.state !== 'inactive') recorder.current.stop();
       recordingOutput.current?.stop();
       microphone.current.forEach((track) => track.stop());
       microphone.current = [];
@@ -40,7 +43,7 @@ export default function MediaCapture({ mode, onAdd, onClose }) {
   useEffect(() => {
     let cancelled = false;
     let connectedStream;
-    const duringRecording = recorder.current?.state === 'recording';
+    const duringRecording = recorder.current && recorder.current.state !== 'inactive';
     if (!duringRecording) setStatus('requesting');
     setConnecting(true);
     setError('');
@@ -56,7 +59,7 @@ export default function MediaCapture({ mode, onAdd, onClose }) {
           },
           audio: mode !== 'photo' && !microphone.current.length,
         });
-        if (cancelled || (duringRecording && recorder.current?.state !== 'recording')) {
+        if (cancelled || (duringRecording && recorder.current?.state === 'inactive')) {
           media.getTracks().forEach((track) => track.stop());
           return;
         }
@@ -66,7 +69,7 @@ export default function MediaCapture({ mode, onAdd, onClose }) {
         if (preview.current) preview.current.srcObject = media;
         if (!duringRecording) setStatus('ready');
       } catch (cause) {
-        if (cancelled || (duringRecording && recorder.current?.state !== 'recording')) return;
+        if (cancelled || (duringRecording && recorder.current?.state === 'inactive')) return;
         setError(cause.name === 'NotAllowedError'
           ? 'Camera or microphone permission was denied. Allow access in your browser settings, or upload a file instead.'
           : cause.name === 'OverconstrainedError' || cause.name === 'NotFoundError'
@@ -96,13 +99,16 @@ export default function MediaCapture({ mode, onAdd, onClose }) {
 
   useEffect(() => {
     if (status !== 'recording') return;
-    const start = Date.now();
+    const start = performance.now();
     const timer = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - start) / 1000);
+      const elapsed = Math.floor((recordedMilliseconds.current + performance.now() - start) / 1000);
       setSeconds(elapsed);
       if (elapsed >= MAX_RECORDING_SECONDS && recorder.current?.state === 'recording') recorder.current.stop();
     }, 250);
-    return () => clearInterval(timer);
+    return () => {
+      recordedMilliseconds.current += performance.now() - start;
+      clearInterval(timer);
+    };
   }, [status]);
 
   function finish(blob, extension) {
@@ -173,8 +179,10 @@ export default function MediaCapture({ mode, onAdd, onClose }) {
         if (!data.size) return;
         chunks.push(data);
         bytes += data.size;
-        if (bytes >= MAX_FILE_BYTES - 2 * 1024 * 1024 && recording.state === 'recording') recording.stop();
+        if (bytes >= MAX_FILE_BYTES - 2 * 1024 * 1024 && recording.state !== 'inactive') recording.stop();
       };
+      recording.onpause = () => { if (active.current) setStatus('paused'); };
+      recording.onresume = () => { if (active.current) setStatus('recording'); };
       recording.onerror = (event) => {
         failed = true;
         stream.current?.getTracks().forEach((track) => track.stop());
@@ -196,6 +204,7 @@ export default function MediaCapture({ mode, onAdd, onClose }) {
         finish(new Blob(chunks, { type }), extension);
       };
       recording.start(1000);
+      recordedMilliseconds.current = 0;
       setSeconds(0);
       setStatus('recording');
     } catch (cause) {
@@ -205,8 +214,18 @@ export default function MediaCapture({ mode, onAdd, onClose }) {
     }
   }
 
+  function toggleRecording() {
+    setError('');
+    try {
+      if (recorder.current.state === 'paused') recorder.current.resume();
+      else if (recorder.current.state === 'recording') recorder.current.pause();
+    } catch (cause) {
+      setError(`Could not pause or resume recording: ${cause.message}`);
+    }
+  }
+
   function switchCamera() {
-    if (status === 'recording' && !recordingOutput.current) {
+    if (isRecording && !recordingOutput.current) {
       setError('This browser cannot switch cameras within a recording. Stop this clip to switch cameras, or use a browser with canvas capture support.');
       return;
     }
@@ -218,24 +237,26 @@ export default function MediaCapture({ mode, onAdd, onClose }) {
       <h2>{mode === 'photo' ? 'A live photo' : `Record ${mode}`}</h2>
       {mode !== 'audio' && status !== 'review' && <video ref={preview} autoPlay muted playsInline aria-label="Live camera preview" />}
       {status === 'requesting' && <p role="status">Opening {mode === 'audio' ? 'microphone' : `${facingMode === 'environment' ? 'rear' : 'front'} camera`}… Allow access if prompted.</p>}
-      {status === 'recording' && <p role="status">Recording · {clock(seconds)} / {clock(MAX_RECORDING_SECONDS)}</p>}
-      {status === 'recording' && connecting && <p role="status">Switching cameras… Audio keeps recording.</p>}
+      {isRecording && <p role="status">{status === 'paused' ? 'Paused' : 'Recording'} · {clock(seconds)} / {clock(MAX_RECORDING_SECONDS)}</p>}
+      {isRecording && connecting && <p role="status">Switching cameras… {status === 'paused' ? 'Recording stays paused.' : 'Audio keeps recording.'}</p>}
       {status === 'review' && resultUrl && (
         mode === 'photo' ? <img src={resultUrl} alt="Captured photo preview" />
-          : mode === 'audio' ? <audio controls src={resultUrl} aria-label="Recorded audio preview" onError={() => setError('This browser cannot preview the recorded audio. You can still add it and download it for playback in another app.')} />
-            : <video controls playsInline src={resultUrl} aria-label="Recorded video preview" onError={() => setError('This browser cannot preview the recorded video. You can still add it and download it for playback in another app.')} />
+          : <MediaPlayer type={mode} src={resultUrl} label={`Recorded ${mode} preview`} onError={() => setError(`This browser cannot preview the recorded ${mode}. You can still add it and download it for playback in another app.`)} />
       )}
-      <p className="editor-hint">Only starts with your permission. Recordings stop at 10 minutes or the file size limit. Review before adding to your note.</p>
+      <p className="editor-hint">Only starts with your permission. Pause and resume to keep one clip; paused time does not count toward the 10-minute limit. Recordings stop at 10 minutes or the file size limit. Review before adding to your note.</p>
       {error && <p className="editor-error" role="alert">{error}</p>}
       <div className="capture-actions">
         <button type="button" className="text-button" onClick={onClose}>{status === 'review' ? 'Discard' : 'Cancel'}</button>
         {mode !== 'audio' && status !== 'review' && (
-          <button type="button" className="text-button" disabled={connecting || !['ready', 'error', 'recording'].includes(status)} onClick={switchCamera}>
+          <button type="button" className="text-button" disabled={connecting || !['ready', 'error', 'recording', 'paused'].includes(status)} onClick={switchCamera}>
             Switch to {facingMode === 'user' ? 'rear' : 'front'} camera
           </button>
         )}
         {status === 'ready' && <button type="button" className="btn-primary" onClick={mode === 'photo' ? takePhoto : startRecording}>{mode === 'photo' ? 'Take photo' : 'Start recording'}</button>}
-        {status === 'recording' && <button type="button" className="btn-primary" onClick={() => recorder.current.stop()}>Stop recording</button>}
+        {isRecording && <>
+          <button type="button" className="btn-outline" onClick={toggleRecording}>{status === 'paused' ? 'Resume recording' : 'Pause recording'}</button>
+          <button type="button" className="btn-primary" onClick={() => recorder.current.stop()}>Stop recording</button>
+        </>}
         {status === 'review' && <button type="button" className="btn-primary" onClick={() => { onAdd([result]); onClose(); }}>Use {mode === 'photo' ? 'photo' : 'recording'}</button>}
       </div>
     </dialog>

@@ -6,6 +6,7 @@ import { uploadFile } from '../lib/media';
 import MediaCapture from './MediaCapture';
 import { useMediaUrl } from '../lib/useMediaUrl';
 import MoodPicker from './MoodPicker';
+import MediaPlayer from './MediaPlayer';
 
 function DraftAttachment({ item }) {
   const [preview, setPreview] = useState(item.url);
@@ -24,8 +25,7 @@ function DraftAttachment({ item }) {
   if (!item.file && saved.error) return <p className="editor-error" role="alert">{saved.error}<button type="button" className="text-button" onClick={saved.retry}>Try again</button></p>;
   if (!item.file) return saved.url ? <img src={saved.url} alt={item.alt || 'Photo preview'} /> : <p role="status">Loading photo…</p>;
   if (item.type === 'image') return <img src={preview} alt={item.alt || 'Photo preview'} />;
-  if (item.type === 'audio') return <audio controls src={preview} aria-label="Audio attachment preview" />;
-  if (item.type === 'video') return <video controls playsInline src={preview} aria-label="Video attachment preview" />;
+  if (item.type === 'audio' || item.type === 'video') return <MediaPlayer type={item.type} src={preview} label={`${item.type === 'audio' ? 'Audio' : 'Video'} attachment preview`} />;
   return <p className="draft-file-name">{item.name} · {formatBytes(item.size)}</p>;
 }
 

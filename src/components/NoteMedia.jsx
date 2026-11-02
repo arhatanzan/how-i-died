@@ -3,6 +3,7 @@ import { Play } from 'lucide-react';
 import { getEmbed } from '../../shared/attachments';
 import { formatBytes, mediaId } from '../../shared/media';
 import { useMediaUrl } from '../lib/useMediaUrl';
+import MediaPlayer from './MediaPlayer';
 
 function Photo({ image, onOpen }) {
   const [failed, setFailed] = useState(false);
@@ -129,8 +130,7 @@ function FileAttachment({ attachment }) {
       <figcaption><strong>{label}</strong><small>{attachment.name} · {formatBytes(attachment.size)}</small></figcaption>
       {!loaded && !isPlayback && <button type="button" className="btn-outline" onClick={() => setLoaded(true)}>Prepare download</button>}
       {loaded && !source.url && !source.error && <p role="status">Loading · {source.progress}%</p>}
-      {source.url && attachment.type === 'audio' && <audio controls preload="metadata" src={source.url} aria-label={label} onError={() => setPlaybackError('This browser cannot play this audio format. Try downloading it to listen in another app.')} />}
-      {source.url && attachment.type === 'video' && <video controls playsInline preload="metadata" src={source.url} aria-label={label} onError={() => setPlaybackError('This browser cannot play this video format. Try downloading it to watch in another app.')} />}
+      {source.url && isPlayback && <MediaPlayer type={attachment.type} src={source.url} label={label} onError={() => setPlaybackError(`This browser cannot play this ${attachment.type} format. Try downloading it to play in another app.`)} />}
       {source.url && <a className="text-button" href={source.url} download={attachment.name || 'journal-attachment'}>Download {label || 'file'}</a>}
       {source.error && <p className="editor-error" role="alert">{source.error} <button type="button" className="text-button" onClick={source.retry}>Try again</button></p>}
       {playbackError && <p className="editor-error" role="alert">{playbackError}</p>}

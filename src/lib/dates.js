@@ -24,3 +24,9 @@ export function toLocalInput(date) {
   const d = new Date(date);
   return `${dayKey(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+
+/** Format timestamp as YYYY-MM-DD HH:mm:ss for human display */
+export function formatTimestamp(date) {
+  const d = new Date(date);
+  return `${dayKey(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
