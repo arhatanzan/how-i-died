@@ -1,10 +1,11 @@
 import { memo, useState } from 'react';
-import { getAttachments, splitLinks } from '../../shared/attachments';
+import { getAttachments } from '../../shared/attachments';
 import { formatShort, formatTime } from '../lib/dates';
 import { moodOf } from '../lib/moods';
 import { NOTE_TEXT_PREVIEW_CLAMP } from '../lib/constants';
 import MoodIcon from './MoodIcon';
 import NoteEditor from './NoteEditor';
+import NoteContent from './NoteContent';
 import NoteMedia from './NoteMedia';
 
 function NoteCard({ note, isAdmin, onUpdate, onDelete, delay = 0, index = 0 }) {
@@ -83,17 +84,7 @@ function NoteCard({ note, isAdmin, onUpdate, onDelete, delay = 0, index = 0 }) {
         <>
           <NoteMedia attachments={attachments} />
           {note.text && (
-            <p className="note-copy">
-              {splitLinks(displayText).map((part, i) =>
-                part.url ? (
-                  <a key={i} href={part.url} target="_blank" rel="noopener noreferrer">
-                    {part.text}
-                  </a>
-                ) : (
-                  part.text
-                )
-              )}
-            </p>
+            <div className="note-copy"><NoteContent text={displayText} /></div>
           )}
           {isLongText && (
             <button

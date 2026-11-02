@@ -60,6 +60,54 @@ export default function NoteEditor({ note, onSave, onCancel }) {
     area.style.height = `${Math.max(area.scrollHeight, 120)}px`;
   }, [text]);
 
+  function applyInlineFormat(prefix, suffix = prefix) {
+    const area = textarea.current;
+    const start = area.selectionStart;
+    const end = area.selectionEnd;
+    const selected = text.slice(start, end);
+    const alreadyFormatted = start >= prefix.length
+      && text.slice(start - prefix.length, start) === prefix
+      && text.slice(end, end + suffix.length) === suffix;
+    const nextStart = alreadyFormatted ? start - prefix.length : start + prefix.length;
+    const nextEnd = alreadyFormatted ? end - prefix.length : end + prefix.length;
+    const nextText = alreadyFormatted
+      ? `${text.slice(0, start - prefix.length)}${selected}${text.slice(end + suffix.length)}`
+      : `${text.slice(0, start)}${prefix}${selected || 'text'}${suffix}${text.slice(end)}`;
+    const cursor = alreadyFormatted
+      ? [nextStart, nextEnd]
+      : selected
+        ? [nextStart, nextEnd]
+        : [start + prefix.length, start + prefix.length + 4];
+
+    setText(nextText);
+    requestAnimationFrame(() => {
+      area.focus();
+      area.setSelectionRange(...cursor);
+    });
+  }
+
+  function applyLineFormat(prefix) {
+    const area = textarea.current;
+    const start = area.selectionStart;
+    const end = area.selectionEnd;
+    const lineStart = text.lastIndexOf('\n', start - 1) + 1;
+    const nextBreak = text.indexOf('\n', end);
+    const lineEnd = nextBreak === -1 ? text.length : nextBreak;
+    const selectedLines = text.slice(lineStart, lineEnd);
+    const lines = selectedLines.split('\n');
+    const shouldRemove = lines.every((line) => line.startsWith(prefix));
+    const formattedLines = lines.map((line) => shouldRemove ? line.slice(prefix.length) : `${prefix}${line}`);
+    const replacement = formattedLines.join('\n');
+    const nextText = `${text.slice(0, lineStart)}${replacement}${text.slice(lineEnd)}`;
+    const cursor = [lineStart, lineStart + replacement.length];
+
+    setText(nextText);
+    requestAnimationFrame(() => {
+      area.focus();
+      area.setSelectionRange(...cursor);
+    });
+  }
+
   function addFiles(files) {
     setDragging(false);
     if (busy) return;
@@ -167,6 +215,23 @@ export default function NoteEditor({ note, onSave, onCancel }) {
       <fieldset disabled={busy}>
         <legend className="editor-eyebrow">{note ? 'Tend this page' : 'A moment to keep'}</legend>
         <label className="sr-only" htmlFor={`${id}-text`}>Note</label>
+        <div className="note-formatting" role="toolbar" aria-label="Text formatting">
+          {[
+            { label: 'Bold', symbol: 'B', prefix: '**', suffix: '**', style: 'format-bold' },
+            { label: 'Italic', symbol: 'I', prefix: '*', suffix: '*', style: 'format-italic' },
+            { label: 'Underline', symbol: 'U', prefix: '++', suffix: '++', style: 'format-underline' },
+            { label: 'Strikethrough', symbol: 'S', prefix: '~~', suffix: '~~', style: 'format-strike' },
+          ].map((format) => (
+            <button key={format.label} type="button" className={format.style} aria-label={format.label} title={format.label} onMouseDown={(event) => event.preventDefault()} onClick={() => applyInlineFormat(format.prefix, format.suffix)}>
+              {format.symbol}
+            </button>
+          ))}
+          <span className="formatting-divider" aria-hidden="true" />
+          <button type="button" aria-label="Heading" title="Heading" onMouseDown={(event) => event.preventDefault()} onClick={() => applyLineFormat('## ')}>H</button>
+          <button type="button" aria-label="Bulleted list" title="Bulleted list" onMouseDown={(event) => event.preventDefault()} onClick={() => applyLineFormat('- ')}>•</button>
+          <button type="button" aria-label="Numbered list" title="Numbered list" onMouseDown={(event) => event.preventDefault()} onClick={() => applyLineFormat('1. ')}>1.</button>
+          <button type="button" aria-label="Quote" title="Quote" onMouseDown={(event) => event.preventDefault()} onClick={() => applyLineFormat('> ')}>“</button>
+        </div>
         <textarea id={`${id}-text`} ref={textarea} value={text} onChange={(event) => setText(event.target.value)} placeholder="A thought, a small joy, something you don’t want to forget…" maxLength={20000} onKeyDown={(event) => {
           if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') event.currentTarget.form.requestSubmit();
         }} />

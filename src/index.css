@@ -278,7 +278,14 @@
   .note-mood { display: inline-flex; color: var(--color-ink); }
   .mood-icon { display: block; width: 24px; height: 24px; flex: none; }
   .note-visibility { color: var(--color-muted); font-family: var(--font-sans); font-size: 0.6rem; text-transform: uppercase; }
-  .note-copy { margin-top: 1.25rem; color: var(--color-ink); font-family: var(--font-note); font-size: 1rem; line-height: 1.95; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .note-copy { margin-top: 1.25rem; color: var(--color-ink); font-family: var(--font-sans); font-size: 1rem; line-height: 1.8; overflow-wrap: anywhere; }
+  .note-copy p { margin: 0 0 0.9em; }
+  .note-copy p:last-child, .note-copy ul:last-child, .note-copy ol:last-child, .note-copy blockquote:last-child { margin-bottom: 0; }
+  .note-copy h2, .note-copy h3 { margin: 1em 0 0.5em; font-family: var(--font-sans); font-weight: 600; line-height: 1.4; }
+  .note-copy h2 { font-size: 1.25em; }
+  .note-copy h3 { font-size: 1.1em; }
+  .note-copy ul, .note-copy ol { margin: 0 0 0.9em; padding-left: 1.5em; }
+  .note-copy blockquote { margin: 0 0 0.9em; padding-left: 1em; border-left: 2px solid var(--color-line); color: var(--color-muted); }
   .journal-note-written > .note-copy { margin-top: 0.8rem; }
   .note-copy a { text-decoration: underline; text-decoration-color: var(--color-muted); }
   .note-copy a:hover { text-decoration-color: var(--color-ink); }
@@ -320,8 +327,16 @@
   .note-editor fieldset { min-width: 0; }
   .note-editor fieldset:disabled { opacity: 0.75; }
   .editor-eyebrow { margin-bottom: 1.5rem; color: var(--color-ink); font-family: var(--font-hand); font-size: 0.85rem; }
-  .note-editor textarea { display: block; width: 100%; min-height: 120px; max-height: 500px; resize: vertical; border: 0; background: transparent; color: var(--color-ink); font-family: var(--font-note); font-size: 1rem; line-height: 1.9; }
+  .note-editor textarea { display: block; width: 100%; min-height: 120px; max-height: 500px; resize: vertical; border: 0; background: transparent; color: var(--color-ink); font-family: var(--font-sans); font-size: 1rem; line-height: 1.8; }
   .note-editor textarea::placeholder { color: var(--color-muted); }
+  .note-formatting { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; margin: 0 0 0.7rem; }
+  .note-formatting button { display: inline-grid; min-width: 40px; min-height: 40px; place-items: center; padding: 0 0.55rem; border: 1px solid transparent; border-radius: 2px; color: var(--color-ink); font-family: var(--font-sans); font-size: 0.85rem; }
+  .note-formatting button:hover { border-color: var(--color-line); background: var(--color-paper); }
+  .note-formatting .format-bold { font-weight: 700; }
+  .note-formatting .format-italic { font-style: italic; }
+  .note-formatting .format-underline { text-decoration: underline; }
+  .note-formatting .format-strike { text-decoration: line-through; }
+  .formatting-divider { width: 1px; height: 24px; margin-inline: 0.25rem; background: var(--color-line); }
   .note-editor.is-dragging { outline: 2px dashed var(--color-ink); outline-offset: 12px; }
   .editor-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 1rem; }
   .editor-attachment-tools { display: flex; flex-wrap: wrap; gap: 0.7rem; }
